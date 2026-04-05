@@ -1,0 +1,64 @@
+.app-shell {
+}
+
+.app-headerbar {
+  border-bottom: 1px solid alpha(currentColor, 0.08);
+}
+
+.content-surface {
+  border-radius: 22px;
+  padding: 2px;
+}
+
+.page-root {
+}
+
+.hero-box {
+  margin-bottom: 2px;
+}
+
+.eyebrow {
+  font-weight: 700;
+  opacity: 0.82;
+  letter-spacing: 0.04em;
+}
+
+.main-card,
+.status-card {
+  border-radius: 18px;
+}
+
+.main-card {
+  margin-top: 2px;
+}
+
+.status-card {
+  margin-top: 2px;
+}
+
+.section-label {
+  font-weight: 700;
+  opacity: 0.95;
+}
+
+.input-control {
+  min-height: 34px;
+  border-radius: 10px;
+}
+
+.pill-button {
+  min-height: 26px;
+  min-width: 46px;
+  border-radius: 999px;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.primary-button {
+  min-height: 36px;
+  border-radius: 10px;
+}
+
+.presets-wrap {
+  margin-top: 1px;
+}
