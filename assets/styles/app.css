@@ -2,7 +2,12 @@
 }
 
 .app-headerbar {
-  border-bottom: 1px solid alpha(currentColor, 0.08);
+  background-color: @headerbar_bg_color;
+  background-image: linear-gradient(
+    alpha(black, 0.12),
+    alpha(black, 0.12)
+  );
+  border-bottom: 1px solid alpha(currentColor, 0.10);
 }
 
 .content-surface {
