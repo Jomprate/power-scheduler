@@ -49,14 +49,9 @@ class SystemdService:
         is_user_unit: bool,
         description: str | None = None,
     ) -> SystemdScheduleResult:
-        if not unit_name.strip():
-            raise ValueError("unit_name cannot be empty.")
-
-        if not command:
-            raise ValueError("command cannot be empty.")
-
-        if delay_seconds <= 0:
-            raise ValueError("delay_seconds must be greater than zero.")
+        self._validate_unit_name(unit_name)
+        self._validate_command(command)
+        self._validate_delay_seconds(delay_seconds)
 
         schedule_command = self.build_schedule_command(
             unit_name=unit_name,
@@ -84,15 +79,17 @@ class SystemdService:
         unit_name: str,
         is_user_unit: bool,
     ) -> SystemdCancelResult:
-        if not unit_name.strip():
-            raise ValueError("unit_name cannot be empty.")
+        self._validate_unit_name(unit_name)
 
         base_command = self._build_systemctl_base(is_user_unit)
 
-        run_command([*base_command, "stop", f"{unit_name}.timer"], check=False)
-        run_command([*base_command, "stop", f"{unit_name}.service"], check=False)
-        run_command([*base_command, "reset-failed", f"{unit_name}.timer"], check=False)
-        run_command([*base_command, "reset-failed", f"{unit_name}.service"], check=False)
+        timer_unit = f"{unit_name}.timer"
+        service_unit = f"{unit_name}.service"
+
+        run_command([*base_command, "stop", timer_unit], check=False)
+        run_command([*base_command, "stop", service_unit], check=False)
+        run_command([*base_command, "reset-failed", timer_unit], check=False)
+        run_command([*base_command, "reset-failed", service_unit], check=False)
 
         return SystemdCancelResult(
             success=True,
@@ -110,6 +107,10 @@ class SystemdService:
         is_user_unit: bool,
         description: str | None = None,
     ) -> list[str]:
+        self._validate_unit_name(unit_name)
+        self._validate_command(command)
+        self._validate_delay_seconds(delay_seconds)
+
         systemd_run_path = self._which_required("systemd-run")
 
         cmd: list[str] = [systemd_run_path]
@@ -130,8 +131,8 @@ class SystemdService:
             ]
         )
 
-        if description:
-            cmd.extend(["--description", description])
+        if description and description.strip():
+            cmd.extend(["--description", description.strip()])
 
         cmd.extend(command)
         return cmd
@@ -144,6 +145,24 @@ class SystemdService:
             base.append("--user")
 
         return base
+
+    @staticmethod
+    def _validate_unit_name(unit_name: str) -> None:
+        if not unit_name or not unit_name.strip():
+            raise ValueError("unit_name cannot be empty.")
+
+    @staticmethod
+    def _validate_command(command: list[str]) -> None:
+        if not command:
+            raise ValueError("command cannot be empty.")
+
+        if any(not str(part).strip() for part in command):
+            raise ValueError("command cannot contain empty parts.")
+
+    @staticmethod
+    def _validate_delay_seconds(delay_seconds: int) -> None:
+        if delay_seconds <= 0:
+            raise ValueError("delay_seconds must be greater than zero.")
 
     @staticmethod
     def _which_required(binary_name: str) -> str:

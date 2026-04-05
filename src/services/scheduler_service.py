@@ -33,10 +33,16 @@ class SchedulerService:
     - return a UI-friendly result
     """
 
-    def __init__(self) -> None:
-        self.session_service = SessionService()
-        self.shutdown_service = ShutdownService()
-        self.systemd_service = SystemdService()
+    def __init__(
+        self,
+        *,
+        session_service: SessionService | None = None,
+        shutdown_service: ShutdownService | None = None,
+        systemd_service: SystemdService | None = None,
+    ) -> None:
+        self.session_service = session_service or SessionService()
+        self.shutdown_service = shutdown_service or ShutdownService()
+        self.systemd_service = systemd_service or SystemdService()
 
     def schedule(self, request: ScheduleRequest) -> ScheduledJobResult:
         validate_schedule_request(request)
@@ -58,20 +64,20 @@ class SchedulerService:
         stdout = (result.stdout or "").strip()
         stderr = (result.stderr or "").strip()
 
-        message = (
-            f"Scheduled {request.action.value} in {scheduled_for}. "
-            f"Unit: {unit_name}"
-        )
+        message_parts = [
+            f"Scheduled {request.action.value} in {scheduled_for}.",
+            f"Unit: {unit_name}",
+        ]
 
         if stdout:
-            message = f"{message}\n{stdout}"
+            message_parts.append(stdout)
 
         if stderr:
-            message = f"{message}\n{stderr}"
+            message_parts.append(stderr)
 
         return ScheduledJobResult(
             success=True,
-            message=message,
+            message="\n".join(message_parts),
             unit_name=unit_name,
             is_user_unit=is_user_unit,
             command=" ".join(result.command),
