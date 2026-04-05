@@ -7,7 +7,7 @@ gi.require_version("Adw", "1")  # type: ignore
 
 from typing import cast
 
-from gi.repository import Adw, Gtk
+from gi.repository import Adw, GLib, Gtk
 
 from app.config import APP_NAME
 from domain.enums import PowerAction, TimeUnit
@@ -416,6 +416,17 @@ class MainWindow(Adw.ApplicationWindow):
         self.unit_dropdown.set_selected(unit_mapping[unit])
         self._refresh_summary()
 
+    def _set_schedule_controls_enabled(self, enabled: bool) -> None:
+        self.schedule_button.set_sensitive(enabled)
+        self.action_dropdown.set_sensitive(enabled)
+        self.amount_spin.set_sensitive(enabled)
+        self.unit_dropdown.set_sensitive(enabled)
+
+    def _flush_ui(self) -> None:
+        context = GLib.MainContext.default()
+        while context.pending():
+            context.iteration(False)
+
     def _on_schedule_clicked(self, _button: Gtk.Button) -> None:
         try:
             request = ScheduleRequest(
@@ -424,12 +435,20 @@ class MainWindow(Adw.ApplicationWindow):
                 unit=self._get_selected_unit(),
             )
 
+            self.status_label.set_text("Scheduling action...")
+            self.command_label.set_text("")
+            self._set_schedule_controls_enabled(False)
+            self._flush_ui()
+
             result = self.scheduler_service.schedule(request)
             self._apply_schedule_result(result)
 
         except Exception as exc:
             self.status_label.set_text(f"Error: {exc}")
             self.command_label.set_text("")
+
+        finally:
+            self._set_schedule_controls_enabled(True)
 
     def _on_cancel_clicked(self, _button: Gtk.Button) -> None:
         if not self.current_unit_name:

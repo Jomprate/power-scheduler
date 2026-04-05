@@ -1,11 +1,14 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from datetime import datetime
 
-from domain.enums import PowerAction
+from domain.enums import PowerAction, TimeUnit
 from domain.models import ScheduleRequest
 from domain.validators import validate_schedule_request
-from services.command_builder import CommandBuilder
-from utils.process_utils import run_command
+from services.session_service import SessionService
+from services.shutdown_service import ShutdownService
+from services.systemd_service import SystemdService
 from utils.time_utils import format_human_time
 
 
@@ -19,58 +22,103 @@ class ScheduledJobResult:
 
 
 class SchedulerService:
-    USER_ACTIONS = {
-        PowerAction.LOCK,
-        PowerAction.LOG_OUT,
-    }
+    """
+    Coordinates scheduling workflow without owning low-level responsibilities.
+
+    Responsibility:
+    - validate the schedule request
+    - resolve which domain service supports the requested action
+    - convert the delay to seconds
+    - delegate transient scheduling/cancellation to SystemdService
+    - return a UI-friendly result
+    """
+
+    def __init__(self) -> None:
+        self.session_service = SessionService()
+        self.shutdown_service = ShutdownService()
+        self.systemd_service = SystemdService()
 
     def schedule(self, request: ScheduleRequest) -> ScheduledJobResult:
         validate_schedule_request(request)
 
         unit_name = self._generate_unit_name(request.action)
-        is_user_unit = request.action in self.USER_ACTIONS
+        is_user_unit = self._is_user_action(request.action)
+        action_command = self._resolve_action_command(request.action)
+        delay_seconds = self._to_delay_seconds(request.amount, request.unit)
 
-        command = CommandBuilder.build_schedule_command(
-            request=request,
+        result = self.systemd_service.schedule(
             unit_name=unit_name,
+            command=action_command,
+            delay_seconds=delay_seconds,
+            is_user_unit=is_user_unit,
+            description=f"Power Scheduler: {request.action.value}",
         )
-        result = run_command(command)
 
         scheduled_for = format_human_time(request.amount, request.unit)
         stdout = (result.stdout or "").strip()
-        base_message = (
+        stderr = (result.stderr or "").strip()
+
+        message = (
             f"Scheduled {request.action.value} in {scheduled_for}. "
             f"Unit: {unit_name}"
         )
 
         if stdout:
-            base_message = f"{base_message}\n{stdout}"
+            message = f"{message}\n{stdout}"
+
+        if stderr:
+            message = f"{message}\n{stderr}"
 
         return ScheduledJobResult(
             success=True,
-            message=base_message,
+            message=message,
             unit_name=unit_name,
             is_user_unit=is_user_unit,
-            command=" ".join(command),
+            command=" ".join(result.command),
         )
 
     def cancel(self, unit_name: str, is_user_unit: bool) -> ScheduledJobResult:
-        base_command = ["systemctl"]
-        if is_user_unit:
-            base_command.append("--user")
-
-        run_command([*base_command, "stop", f"{unit_name}.timer"], check=False)
-        run_command([*base_command, "stop", f"{unit_name}.service"], check=False)
-        run_command([*base_command, "reset-failed"], check=False)
-
-        return ScheduledJobResult(
-            success=True,
-            message=f"Cancelled scheduled action for unit: {unit_name}",
+        result = self.systemd_service.cancel(
             unit_name=unit_name,
             is_user_unit=is_user_unit,
+        )
+
+        return ScheduledJobResult(
+            success=result.success,
+            message=result.message,
+            unit_name=result.unit_name,
+            is_user_unit=result.is_user_unit,
             command=None,
         )
+
+    def _resolve_action_command(self, action: PowerAction) -> list[str]:
+        if self.session_service.supports(action):
+            return self.session_service.build_action_command(action)
+
+        if self.shutdown_service.supports(action):
+            return self.shutdown_service.build_action_command(action)
+
+        raise ValueError(f"Unsupported action: {action}")
+
+    def _is_user_action(self, action: PowerAction) -> bool:
+        return self.session_service.supports(action)
 
     def _generate_unit_name(self, action: PowerAction) -> str:
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S%f")
         return f"power-scheduler-{action.value}-{timestamp}"
+
+    @staticmethod
+    def _to_delay_seconds(amount: int, unit: TimeUnit) -> int:
+        if amount <= 0:
+            raise ValueError("Amount must be greater than zero.")
+
+        if unit == TimeUnit.SECONDS:
+            return amount
+
+        if unit == TimeUnit.MINUTES:
+            return amount * 60
+
+        if unit == TimeUnit.HOURS:
+            return amount * 3600
+
+        raise ValueError(f"Unsupported time unit: {unit}")
