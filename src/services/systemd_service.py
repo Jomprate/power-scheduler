@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import shutil
 
 from utils.process_utils import run_command
 
@@ -36,6 +37,8 @@ class SystemdService:
     - decide which action should be executed
     - know about lock/log out/suspend/hibernate/power off semantics
     """
+
+    TIMER_ACCURACY = "1us"
 
     def schedule(
         self,
@@ -107,7 +110,9 @@ class SystemdService:
         is_user_unit: bool,
         description: str | None = None,
     ) -> list[str]:
-        cmd: list[str] = ["systemd-run"]
+        systemd_run_path = self._which_required("systemd-run")
+
+        cmd: list[str] = [systemd_run_path]
 
         if is_user_unit:
             cmd.append("--user")
@@ -119,6 +124,7 @@ class SystemdService:
                 unit_name,
                 "--on-active",
                 f"{delay_seconds}s",
+                f"--timer-property=AccuracySec={self.TIMER_ACCURACY}",
                 "--collect",
                 "--property=Type=oneshot",
             ]
@@ -130,11 +136,18 @@ class SystemdService:
         cmd.extend(command)
         return cmd
 
-    @staticmethod
-    def _build_systemctl_base(is_user_unit: bool) -> list[str]:
-        base = ["systemctl"]
+    def _build_systemctl_base(self, is_user_unit: bool) -> list[str]:
+        systemctl_path = self._which_required("systemctl")
+        base = [systemctl_path]
 
         if is_user_unit:
             base.append("--user")
 
         return base
+
+    @staticmethod
+    def _which_required(binary_name: str) -> str:
+        resolved = shutil.which(binary_name)
+        if not resolved:
+            raise RuntimeError(f"Required binary not found: {binary_name}")
+        return resolved
