@@ -16,6 +16,8 @@ from services.scheduler_service import SchedulerService, ScheduledJobResult
 
 
 class MainWindow(Adw.ApplicationWindow):
+    HIBERNATE_INDEX = 3
+
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
 
@@ -27,6 +29,8 @@ class MainWindow(Adw.ApplicationWindow):
         self.current_unit_name: str | None = None
         self.current_is_user_unit: bool = False
         self.current_command: str | None = None
+        self.last_valid_action_index: int = 0
+        self._is_reverting_action_selection = False
 
         self.action_dropdown: Gtk.DropDown = cast(Gtk.DropDown, None)
         self.amount_spin: Gtk.SpinButton = cast(Gtk.SpinButton, None)
@@ -39,6 +43,7 @@ class MainWindow(Adw.ApplicationWindow):
 
         self._build_ui()
         self._refresh_summary()
+        self._refresh_action_availability()
 
     def _build_ui(self) -> None:
         toolbar_view = Adw.ToolbarView()
@@ -175,7 +180,7 @@ class MainWindow(Adw.ApplicationWindow):
                 "Lock",
                 "Log out",
                 "Suspend",
-                "Hibernate",
+                "Hibernate (disabled)",
                 "Power off",
             ]
         )
@@ -388,7 +393,27 @@ class MainWindow(Adw.ApplicationWindow):
         hints_box.append(hints_text)
 
     def _on_form_changed(self, *_args) -> None:
+        if self._is_reverting_action_selection:
+            return
+
+        selected_index = self.action_dropdown.get_selected()
+
+        if selected_index == self.HIBERNATE_INDEX:
+            self._is_reverting_action_selection = True
+            self.action_dropdown.set_selected(self.last_valid_action_index)
+            self._is_reverting_action_selection = False
+
+            self.status_label.set_text(
+                "Hibernate is disabled on this system because it is not configured to work reliably."
+            )
+            self.command_label.set_text("")
+            self._refresh_summary()
+            self._refresh_action_availability()
+            return
+
+        self.last_valid_action_index = selected_index
         self._refresh_summary()
+        self._refresh_action_availability()
 
     def _refresh_summary(self) -> None:
         action_label = self._get_selected_action_label()
@@ -398,6 +423,14 @@ class MainWindow(Adw.ApplicationWindow):
         self.summary_label.set_text(
             f"{action_label} will run in {amount} {unit_label.lower()}."
         )
+
+    def _refresh_action_availability(self) -> None:
+        self.schedule_button.set_sensitive(True)
+
+        if not self.current_unit_name:
+            self.status_label.set_text(
+                "Choose an action and a delay, then schedule it."
+            )
 
     def _on_preset_clicked(
         self,
@@ -415,6 +448,7 @@ class MainWindow(Adw.ApplicationWindow):
 
         self.unit_dropdown.set_selected(unit_mapping[unit])
         self._refresh_summary()
+        self._refresh_action_availability()
 
     def _set_schedule_controls_enabled(self, enabled: bool) -> None:
         self.schedule_button.set_sensitive(enabled)
@@ -467,6 +501,7 @@ class MainWindow(Adw.ApplicationWindow):
             self.current_is_user_unit = False
             self.current_command = None
             self.cancel_button.set_sensitive(False)
+            self._refresh_action_availability()
         except Exception as exc:
             self.status_label.set_text(f"Error: {exc}")
 
@@ -502,7 +537,7 @@ class MainWindow(Adw.ApplicationWindow):
             0: "Lock",
             1: "Log out",
             2: "Suspend",
-            3: "Hibernate",
+            3: "Hibernate (disabled)",
             4: "Power off",
         }
 
