@@ -6,6 +6,10 @@ from datetime import datetime
 from domain.enums import PowerAction, TimeUnit
 from domain.models import ScheduleRequest
 from domain.validators import validate_schedule_request
+from repositories.scheduled_job_repository import (
+    ScheduledJobRecord,
+    ScheduledJobRepository,
+)
 from services.session_service import SessionService
 from services.shutdown_service import ShutdownService
 from services.systemd_service import SystemdService
@@ -30,6 +34,7 @@ class SchedulerService:
     - resolve which domain service supports the requested action
     - convert the delay to seconds
     - delegate transient scheduling/cancellation to SystemdService
+    - persist the last scheduled job for later recovery/cancellation
     - return a UI-friendly result
     """
 
@@ -39,10 +44,14 @@ class SchedulerService:
         session_service: SessionService | None = None,
         shutdown_service: ShutdownService | None = None,
         systemd_service: SystemdService | None = None,
+        scheduled_job_repository: ScheduledJobRepository | None = None,
     ) -> None:
         self.session_service = session_service or SessionService()
         self.shutdown_service = shutdown_service or ShutdownService()
         self.systemd_service = systemd_service or SystemdService()
+        self.scheduled_job_repository = (
+            scheduled_job_repository or ScheduledJobRepository()
+        )
 
     def schedule(self, request: ScheduleRequest) -> ScheduledJobResult:
         validate_schedule_request(request)
@@ -75,7 +84,7 @@ class SchedulerService:
         if stderr:
             message_parts.append(stderr)
 
-        return ScheduledJobResult(
+        ui_result = ScheduledJobResult(
             success=True,
             message="\n".join(message_parts),
             unit_name=unit_name,
@@ -83,11 +92,29 @@ class SchedulerService:
             command=" ".join(result.command),
         )
 
+        self.scheduled_job_repository.save_current_job(
+            ScheduledJobRecord(
+                unit_name=unit_name,
+                is_user_unit=is_user_unit,
+                action=request.action,
+                amount=request.amount,
+                unit=request.unit,
+                command=ui_result.command,
+            )
+        )
+
+        return ui_result
+
     def cancel(self, unit_name: str, is_user_unit: bool) -> ScheduledJobResult:
         result = self.systemd_service.cancel(
             unit_name=unit_name,
             is_user_unit=is_user_unit,
         )
+
+        if result.success:
+            stored_job = self.scheduled_job_repository.get_current_job()
+            if stored_job is None or stored_job.unit_name == unit_name:
+                self.scheduled_job_repository.clear_current_job()
 
         return ScheduledJobResult(
             success=result.success,
@@ -96,6 +123,12 @@ class SchedulerService:
             is_user_unit=result.is_user_unit,
             command=None,
         )
+
+    def get_current_scheduled_job(self) -> ScheduledJobRecord | None:
+        return self.scheduled_job_repository.get_current_job()
+
+    def clear_current_scheduled_job(self) -> None:
+        self.scheduled_job_repository.clear_current_job()
 
     def _resolve_action_command(self, action: PowerAction) -> list[str]:
         if self.session_service.supports(action):

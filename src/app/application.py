@@ -8,6 +8,10 @@ from pathlib import Path
 from gi.repository import Adw, Gdk, Gio, Gtk, GLib
 
 from app.config import APP_ID
+from domain.models import ScheduleRequest
+from repositories.scheduled_job_repository import ScheduledJobRepository
+from services.notification_service import NotificationService
+from services.scheduler_service import ScheduledJobResult, SchedulerService
 from ui.main_window import MainWindow
 
 
@@ -28,6 +32,19 @@ class PowerSchedulerApplication(Adw.Application):
         self._monitors_started = False
         self._reload_timeout_id: int | None = None
 
+        self.scheduled_job_repository = ScheduledJobRepository()
+        self.scheduler_service = SchedulerService(
+            scheduled_job_repository=self.scheduled_job_repository
+        )
+        self.notification_service = NotificationService(self)
+
+        self._register_actions()
+
+    def _register_actions(self) -> None:
+        cancel_action = Gio.SimpleAction.new("cancel-scheduled", None)
+        cancel_action.connect("activate", self._on_cancel_scheduled_action)
+        self.add_action(cancel_action)
+
     def _on_activate(self, _app) -> None:
         self._ensure_css_loaded()
         self._ensure_system_palette_loaded()
@@ -36,9 +53,54 @@ class PowerSchedulerApplication(Adw.Application):
 
         window = self.props.active_window
         if window is None:
-            window = MainWindow(application=self)
+            window = MainWindow(
+                application=self,
+                scheduler_service=self.scheduler_service,
+            )
 
         window.present()
+
+    def show_schedule_notification(
+        self,
+        request: ScheduleRequest,
+        result: ScheduledJobResult,
+    ) -> None:
+        self.notification_service.send_scheduled_notification(request, result)
+
+    def show_cancellation_notification(self, message: str) -> None:
+        self.notification_service.send_cancellation_notification(message)
+
+    def show_error_notification(self, message: str) -> None:
+        self.notification_service.send_error_notification(message)
+
+    def _on_cancel_scheduled_action(
+        self,
+        _action: Gio.SimpleAction,
+        _parameter: GLib.Variant | None,
+    ) -> None:
+        stored_job = self.scheduler_service.get_current_scheduled_job()
+
+        if stored_job is None:
+            self.notification_service.send_cancellation_notification(
+                "No scheduled action was found to cancel."
+            )
+            return
+
+        try:
+            result = self.scheduler_service.cancel(
+                stored_job.unit_name,
+                stored_job.is_user_unit,
+            )
+
+            if result.success:
+                self.notification_service.send_cancellation_notification(
+                    result.message
+                )
+            else:
+                self.notification_service.send_error_notification(result.message)
+
+        except Exception as exc:
+            self.notification_service.send_error_notification(f"Error: {exc}")
 
     def _ensure_css_loaded(self) -> None:
         if self._app_css_loaded:
@@ -116,7 +178,6 @@ class PowerSchedulerApplication(Adw.Application):
             monitor.connect("changed", self._on_palette_file_changed)
             self._file_monitors.append(monitor)
         except Exception:
-            # Ignore monitor setup failures and rely on style-manager fallback.
             pass
 
     def _on_dark_changed(self, *_args) -> None:

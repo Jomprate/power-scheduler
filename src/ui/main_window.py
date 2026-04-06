@@ -18,14 +18,19 @@ from services.scheduler_service import SchedulerService, ScheduledJobResult
 class MainWindow(Adw.ApplicationWindow):
     HIBERNATE_INDEX = 3
 
-    def __init__(self, **kwargs) -> None:
+    def __init__(
+        self,
+        *,
+        scheduler_service: SchedulerService | None = None,
+        **kwargs,
+    ) -> None:
         super().__init__(**kwargs)
 
         self.set_title(APP_NAME)
         self.set_default_size(820, 460)
         self.set_resizable(True)
 
-        self.scheduler_service = SchedulerService()
+        self.scheduler_service = scheduler_service or SchedulerService()
         self.current_unit_name: str | None = None
         self.current_is_user_unit: bool = False
         self.current_command: str | None = None
@@ -35,13 +40,14 @@ class MainWindow(Adw.ApplicationWindow):
         self.action_dropdown: Gtk.DropDown = cast(Gtk.DropDown, None)
         self.amount_spin: Gtk.SpinButton = cast(Gtk.SpinButton, None)
         self.unit_dropdown: Gtk.DropDown = cast(Gtk.DropDown, None)
-        self.status_label: Gtk.Label = cast(Gtk.Label, None)
-        self.command_label: Gtk.Label = cast(Gtk.Label, None)
         self.summary_label: Gtk.Label = cast(Gtk.Label, None)
+        self.status_text_view: Gtk.TextView = cast(Gtk.TextView, None)
+        self.status_buffer: Gtk.TextBuffer = cast(Gtk.TextBuffer, None)
         self.schedule_button: Gtk.Button = cast(Gtk.Button, None)
         self.cancel_button: Gtk.Button = cast(Gtk.Button, None)
 
         self._build_ui()
+        self._restore_saved_job_if_any()
         self._refresh_summary()
         self._refresh_action_availability()
 
@@ -327,7 +333,7 @@ class MainWindow(Adw.ApplicationWindow):
         status_frame.add_css_class("status-card")
         side_box.append(status_frame)
 
-        status_box = Gtk.Box(
+        status_outer_box = Gtk.Box(
             orientation=Gtk.Orientation.VERTICAL,
             spacing=8,
             margin_top=14,
@@ -335,29 +341,35 @@ class MainWindow(Adw.ApplicationWindow):
             margin_start=14,
             margin_end=14,
         )
-        status_frame.set_child(status_box)
+        status_frame.set_child(status_outer_box)
 
         status_title = Gtk.Label()
         status_title.set_markup("<span weight='bold'>Status</span>")
         status_title.set_halign(Gtk.Align.START)
         status_title.set_xalign(0.0)
-        status_box.append(status_title)
+        status_outer_box.append(status_title)
 
-        self.status_label = Gtk.Label(
-            label="Choose an action and a delay, then schedule it."
-        )
-        self.status_label.set_wrap(True)
-        self.status_label.set_halign(Gtk.Align.START)
-        self.status_label.set_xalign(0.0)
-        status_box.append(self.status_label)
+        status_scroll = Gtk.ScrolledWindow()
+        status_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        status_scroll.set_min_content_height(120)
+        status_scroll.set_max_content_height(180)
+        status_scroll.set_propagate_natural_height(False)
+        status_scroll.set_has_frame(False)
+        status_outer_box.append(status_scroll)
 
-        self.command_label = Gtk.Label(label="")
-        self.command_label.set_wrap(True)
-        self.command_label.set_halign(Gtk.Align.START)
-        self.command_label.set_xalign(0.0)
-        self.command_label.set_selectable(True)
-        self.command_label.add_css_class("dim-label")
-        status_box.append(self.command_label)
+        self.status_buffer = Gtk.TextBuffer()
+        self.status_text_view = Gtk.TextView.new_with_buffer(self.status_buffer)
+        self.status_text_view.set_editable(False)
+        self.status_text_view.set_cursor_visible(False)
+        self.status_text_view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
+        self.status_text_view.set_left_margin(0)
+        self.status_text_view.set_right_margin(0)
+        self.status_text_view.set_top_margin(0)
+        self.status_text_view.set_bottom_margin(0)
+        self.status_text_view.add_css_class("dim-label")
+        status_scroll.set_child(self.status_text_view)
+
+        self._set_status_content("Choose an action and a delay, then schedule it.", "")
 
         hints_frame = Gtk.Frame()
         hints_frame.add_css_class("card")
@@ -392,6 +404,62 @@ class MainWindow(Adw.ApplicationWindow):
         hints_text.add_css_class("dim-label")
         hints_box.append(hints_text)
 
+    def _set_status_content(self, status_text: str, command_text: str | None) -> None:
+        clean_status = status_text.strip()
+        clean_command = (command_text or "").strip()
+
+        if clean_status and clean_command:
+            combined = f"{clean_status}\n\n{clean_command}"
+        elif clean_status:
+            combined = clean_status
+        elif clean_command:
+            combined = clean_command
+        else:
+            combined = ""
+
+        self.status_buffer.set_text(combined)
+
+    def _restore_saved_job_if_any(self) -> None:
+        stored_job = self.scheduler_service.get_current_scheduled_job()
+        if stored_job is None:
+            return
+
+        self.current_unit_name = stored_job.unit_name
+        self.current_is_user_unit = stored_job.is_user_unit
+        self.current_command = stored_job.command
+        self.cancel_button.set_sensitive(True)
+
+        if stored_job.action != PowerAction.HIBERNATE:
+            self._is_reverting_action_selection = True
+            self.action_dropdown.set_selected(
+                self._get_action_index(stored_job.action)
+            )
+            self.last_valid_action_index = self.action_dropdown.get_selected()
+            self._is_reverting_action_selection = False
+
+        self.amount_spin.set_value(stored_job.amount)
+        self.unit_dropdown.set_selected(self._get_unit_index(stored_job.unit))
+
+        self._set_status_content(
+            f"Recovered scheduled action: {stored_job.unit_name}",
+            stored_job.command,
+        )
+
+    def _sync_current_job_state(self) -> None:
+        stored_job = self.scheduler_service.get_current_scheduled_job()
+
+        if stored_job is None:
+            self.current_unit_name = None
+            self.current_is_user_unit = False
+            self.current_command = None
+            self.cancel_button.set_sensitive(False)
+            return
+
+        self.current_unit_name = stored_job.unit_name
+        self.current_is_user_unit = stored_job.is_user_unit
+        self.current_command = stored_job.command
+        self.cancel_button.set_sensitive(True)
+
     def _on_form_changed(self, *_args) -> None:
         if self._is_reverting_action_selection:
             return
@@ -403,10 +471,10 @@ class MainWindow(Adw.ApplicationWindow):
             self.action_dropdown.set_selected(self.last_valid_action_index)
             self._is_reverting_action_selection = False
 
-            self.status_label.set_text(
-                "Hibernate is disabled on this system because it is not configured to work reliably."
+            self._set_status_content(
+                "Hibernate is disabled on this system because it is not configured to work reliably.",
+                "",
             )
-            self.command_label.set_text("")
             self._refresh_summary()
             self._refresh_action_availability()
             return
@@ -426,11 +494,7 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _refresh_action_availability(self) -> None:
         self.schedule_button.set_sensitive(True)
-
-        if not self.current_unit_name:
-            self.status_label.set_text(
-                "Choose an action and a delay, then schedule it."
-            )
+        self._sync_current_job_state()
 
     def _on_preset_clicked(
         self,
@@ -439,14 +503,7 @@ class MainWindow(Adw.ApplicationWindow):
         unit: TimeUnit,
     ) -> None:
         self.amount_spin.set_value(amount)
-
-        unit_mapping = {
-            TimeUnit.SECONDS: 0,
-            TimeUnit.MINUTES: 1,
-            TimeUnit.HOURS: 2,
-        }
-
-        self.unit_dropdown.set_selected(unit_mapping[unit])
+        self.unit_dropdown.set_selected(self._get_unit_index(unit))
         self._refresh_summary()
         self._refresh_action_availability()
 
@@ -462,6 +519,8 @@ class MainWindow(Adw.ApplicationWindow):
             context.iteration(False)
 
     def _on_schedule_clicked(self, _button: Gtk.Button) -> None:
+        self._sync_current_job_state()
+
         try:
             request = ScheduleRequest(
                 action=self._get_selected_action(),
@@ -469,25 +528,24 @@ class MainWindow(Adw.ApplicationWindow):
                 unit=self._get_selected_unit(),
             )
 
-            self.status_label.set_text("Scheduling action...")
-            self.command_label.set_text("")
+            self._set_status_content("Scheduling action...", "")
             self._set_schedule_controls_enabled(False)
             self._flush_ui()
 
             result = self.scheduler_service.schedule(request)
             self._apply_schedule_result(result)
+            self._notify_schedule_created(request, result)
 
         except Exception as exc:
-            self.status_label.set_text(f"Error: {exc}")
-            self.command_label.set_text("")
+            self._set_status_content(f"Error: {exc}", "")
+            self._notify_error(f"Error: {exc}")
 
         finally:
             self._set_schedule_controls_enabled(True)
 
     def _on_cancel_clicked(self, _button: Gtk.Button) -> None:
         if not self.current_unit_name:
-            self.status_label.set_text("No scheduled action to cancel.")
-            self.command_label.set_text("")
+            self._set_status_content("No scheduled action to cancel.", "")
             return
 
         try:
@@ -495,29 +553,50 @@ class MainWindow(Adw.ApplicationWindow):
                 self.current_unit_name,
                 self.current_is_user_unit,
             )
-            self.status_label.set_text(result.message)
-            self.command_label.set_text("")
+            self._set_status_content(result.message, "")
             self.current_unit_name = None
             self.current_is_user_unit = False
             self.current_command = None
             self.cancel_button.set_sensitive(False)
             self._refresh_action_availability()
+            self._notify_schedule_cancelled(result.message)
         except Exception as exc:
-            self.status_label.set_text(f"Error: {exc}")
+            self._set_status_content(f"Error: {exc}", "")
+            self._notify_error(f"Error: {exc}")
 
     def _apply_schedule_result(self, result: ScheduledJobResult) -> None:
-        self.status_label.set_text(result.message)
-
-        if result.command:
-            self.command_label.set_text(result.command)
-        else:
-            self.command_label.set_text("")
+        self._set_status_content(result.message, result.command)
 
         if result.unit_name:
             self.current_unit_name = result.unit_name
             self.current_is_user_unit = result.is_user_unit
             self.current_command = result.command
             self.cancel_button.set_sensitive(True)
+
+    def _notify_schedule_created(
+        self,
+        request: ScheduleRequest,
+        result: ScheduledJobResult,
+    ) -> None:
+        application = self.get_application()
+        callback = getattr(application, "show_schedule_notification", None)
+
+        if callable(callback):
+            callback(request, result)
+
+    def _notify_schedule_cancelled(self, message: str) -> None:
+        application = self.get_application()
+        callback = getattr(application, "show_cancellation_notification", None)
+
+        if callable(callback):
+            callback(message)
+
+    def _notify_error(self, message: str) -> None:
+        application = self.get_application()
+        callback = getattr(application, "show_error_notification", None)
+
+        if callable(callback):
+            callback(message)
 
     def _get_selected_action(self) -> PowerAction:
         index = self.action_dropdown.get_selected()
@@ -564,3 +643,23 @@ class MainWindow(Adw.ApplicationWindow):
             return "Minute" if amount == 1 else "Minutes"
 
         return "Hour" if amount == 1 else "Hours"
+
+    @staticmethod
+    def _get_action_index(action: PowerAction) -> int:
+        mapping = {
+            PowerAction.LOCK: 0,
+            PowerAction.LOG_OUT: 1,
+            PowerAction.SUSPEND: 2,
+            PowerAction.HIBERNATE: 3,
+            PowerAction.POWER_OFF: 4,
+        }
+        return mapping[action]
+
+    @staticmethod
+    def _get_unit_index(unit: TimeUnit) -> int:
+        mapping = {
+            TimeUnit.SECONDS: 0,
+            TimeUnit.MINUTES: 1,
+            TimeUnit.HOURS: 2,
+        }
+        return mapping[unit]
