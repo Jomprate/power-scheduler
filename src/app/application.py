@@ -10,6 +10,7 @@ from gi.repository import Adw, Gdk, Gio, Gtk, GLib
 from app.config import APP_ID
 from domain.models import ScheduleRequest
 from repositories.scheduled_job_repository import ScheduledJobRepository
+from services.capability_service import CapabilityService
 from services.notification_service import NotificationService
 from services.scheduler_service import ScheduledJobResult, SchedulerService
 from ui.main_window import MainWindow
@@ -56,6 +57,7 @@ class PowerSchedulerApplication(Adw.Application):
             window = MainWindow(
                 application=self,
                 scheduler_service=self.scheduler_service,
+                capability_service=CapabilityService(),
             )
 
         window.present()

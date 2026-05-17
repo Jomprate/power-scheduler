@@ -12,16 +12,33 @@ from gi.repository import Adw, GLib, Gtk
 from app.config import APP_NAME
 from domain.enums import PowerAction, TimeUnit
 from domain.models import ScheduleRequest
+from services.capability_service import ActionCapability, CapabilityService
 from services.scheduler_service import SchedulerService, ScheduledJobResult
 
 
-class MainWindow(Adw.ApplicationWindow):
-    HIBERNATE_INDEX = 3
+def _build_action_list_from_caps(
+    caps: dict[str, ActionCapability],
+) -> list[tuple[str, PowerAction]]:
+    ordered_keys = [
+        ("lock", "Lock", PowerAction.LOCK),
+        ("log_out", "Log out", PowerAction.LOG_OUT),
+        ("suspend", "Suspend", PowerAction.SUSPEND),
+        ("hibernate", "Hibernate", PowerAction.HIBERNATE),
+        ("power_off", "Power off", PowerAction.POWER_OFF),
+    ]
+    return [
+        (label, action)
+        for key, label, action in ordered_keys
+        if caps.get(key) and caps[key].available
+    ]
 
+
+class MainWindow(Adw.ApplicationWindow):
     def __init__(
         self,
         *,
         scheduler_service: SchedulerService | None = None,
+        capability_service: CapabilityService | None = None,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -31,11 +48,11 @@ class MainWindow(Adw.ApplicationWindow):
         self.set_resizable(True)
 
         self.scheduler_service = scheduler_service or SchedulerService()
+        self.capability_service = capability_service or CapabilityService()
+        self._action_items: list[tuple[str, PowerAction]] = []
         self.current_unit_name: str | None = None
         self.current_is_user_unit: bool = False
         self.current_command: str | None = None
-        self.last_valid_action_index: int = 0
-        self._is_reverting_action_selection = False
 
         self.action_dropdown: Gtk.DropDown = cast(Gtk.DropDown, None)
         self.amount_spin: Gtk.SpinButton = cast(Gtk.SpinButton, None)
@@ -181,15 +198,10 @@ class MainWindow(Adw.ApplicationWindow):
         action_label.add_css_class("section-label")
         action_section.append(action_label)
 
-        action_dropdown = Gtk.DropDown.new_from_strings(
-            [
-                "Lock",
-                "Log out",
-                "Suspend",
-                "Hibernate (disabled)",
-                "Power off",
-            ]
-        )
+        self._action_items = self._build_action_list()
+        action_labels = [label for label, _ in self._action_items]
+        action_strings = Gtk.StringList.new(action_labels)
+        action_dropdown = Gtk.DropDown.new(action_strings)
         action_dropdown.set_selected(0)
         action_dropdown.add_css_class("input-control")
         action_dropdown.connect("notify::selected", self._on_form_changed)
@@ -429,13 +441,9 @@ class MainWindow(Adw.ApplicationWindow):
         self.current_command = stored_job.command
         self.cancel_button.set_sensitive(True)
 
-        if stored_job.action != PowerAction.HIBERNATE:
-            self._is_reverting_action_selection = True
-            self.action_dropdown.set_selected(
-                self._get_action_index(stored_job.action)
-            )
-            self.last_valid_action_index = self.action_dropdown.get_selected()
-            self._is_reverting_action_selection = False
+        action_index = self._get_action_index(stored_job.action)
+        if action_index is not None:
+            self.action_dropdown.set_selected(action_index)
 
         self.amount_spin.set_value(stored_job.amount)
         self.unit_dropdown.set_selected(self._get_unit_index(stored_job.unit))
@@ -461,25 +469,6 @@ class MainWindow(Adw.ApplicationWindow):
         self.cancel_button.set_sensitive(True)
 
     def _on_form_changed(self, *_args) -> None:
-        if self._is_reverting_action_selection:
-            return
-
-        selected_index = self.action_dropdown.get_selected()
-
-        if selected_index == self.HIBERNATE_INDEX:
-            self._is_reverting_action_selection = True
-            self.action_dropdown.set_selected(self.last_valid_action_index)
-            self._is_reverting_action_selection = False
-
-            self._set_status_content(
-                "Hibernate is disabled on this system because it is not configured to work reliably.",
-                "",
-            )
-            self._refresh_summary()
-            self._refresh_action_availability()
-            return
-
-        self.last_valid_action_index = selected_index
         self._refresh_summary()
         self._refresh_action_availability()
 
@@ -598,29 +587,26 @@ class MainWindow(Adw.ApplicationWindow):
         if callable(callback):
             callback(message)
 
+    def _build_action_list(self) -> list[tuple[str, PowerAction]]:
+        return _build_action_list_from_caps(
+            self.capability_service.get_capabilities()
+        )
+
     def _get_selected_action(self) -> PowerAction:
         index = self.action_dropdown.get_selected()
 
-        mapping = {
-            0: PowerAction.LOCK,
-            1: PowerAction.LOG_OUT,
-            2: PowerAction.SUSPEND,
-            3: PowerAction.HIBERNATE,
-            4: PowerAction.POWER_OFF,
-        }
+        if 0 <= index < len(self._action_items):
+            return self._action_items[index][1]
 
-        return mapping[index]
+        return self._action_items[0][1]
 
     def _get_selected_action_label(self) -> str:
-        mapping = {
-            0: "Lock",
-            1: "Log out",
-            2: "Suspend",
-            3: "Hibernate (disabled)",
-            4: "Power off",
-        }
+        index = self.action_dropdown.get_selected()
 
-        return mapping[self.action_dropdown.get_selected()]
+        if 0 <= index < len(self._action_items):
+            return self._action_items[index][0]
+
+        return self._action_items[0][0]
 
     def _get_selected_unit(self) -> TimeUnit:
         index = self.unit_dropdown.get_selected()
@@ -644,16 +630,11 @@ class MainWindow(Adw.ApplicationWindow):
 
         return "Hour" if amount == 1 else "Hours"
 
-    @staticmethod
-    def _get_action_index(action: PowerAction) -> int:
-        mapping = {
-            PowerAction.LOCK: 0,
-            PowerAction.LOG_OUT: 1,
-            PowerAction.SUSPEND: 2,
-            PowerAction.HIBERNATE: 3,
-            PowerAction.POWER_OFF: 4,
-        }
-        return mapping[action]
+    def _get_action_index(self, action: PowerAction) -> int | None:
+        for i, (_, act) in enumerate(self._action_items):
+            if act == action:
+                return i
+        return None
 
     @staticmethod
     def _get_unit_index(unit: TimeUnit) -> int:
