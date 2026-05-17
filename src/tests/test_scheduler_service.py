@@ -13,11 +13,13 @@ class SchedulerServiceTests(unittest.TestCase):
         self.session_service = Mock()
         self.shutdown_service = Mock()
         self.systemd_service = Mock()
+        self.scheduled_job_repository = Mock()
 
         self.service = SchedulerService(
             session_service=self.session_service,
             shutdown_service=self.shutdown_service,
             systemd_service=self.systemd_service,
+            scheduled_job_repository=self.scheduled_job_repository,
         )
 
     @patch("services.scheduler_service.validate_schedule_request")

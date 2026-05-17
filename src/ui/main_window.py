@@ -10,7 +10,7 @@ from gi.repository import Adw, GLib, Gtk
 from app.config import APP_NAME
 from domain.models import ScheduleRequest
 from services.capability_service import CapabilityService
-from services.scheduler_service import ScheduledJobResult, SchedulerService
+from services.schedule_controller import ScheduleController
 from ui.schedule_form import ScheduleForm
 from ui.status_panel import StatusPanel
 
@@ -22,8 +22,8 @@ class MainWindow(Adw.ApplicationWindow):
     def __init__(
         self,
         *,
-        scheduler_service: SchedulerService | None = None,
-        capability_service: CapabilityService | None = None,
+        controller: ScheduleController,
+        capability_service: CapabilityService,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -32,13 +32,9 @@ class MainWindow(Adw.ApplicationWindow):
         self.set_default_size(DEFAULT_WIDTH, DEFAULT_HEIGHT)
         self.set_resizable(True)
 
-        self.scheduler_service = scheduler_service or SchedulerService()
-        self.capability_service = capability_service or CapabilityService()
-        self.current_unit_name: str | None = None
-        self.current_is_user_unit: bool = False
-        self.current_command: str | None = None
-
-        self._form = ScheduleForm(self.capability_service)
+        self._controller = controller
+        self._capability_service = capability_service
+        self._form = ScheduleForm(self._capability_service)
         self._status_panel = StatusPanel()
 
         self._build_ui()
@@ -140,36 +136,19 @@ class MainWindow(Adw.ApplicationWindow):
         self._form.cancel_button.connect("clicked", self._on_cancel_clicked)
 
     def _restore_saved_job_if_any(self) -> None:
-        stored_job = self.scheduler_service.get_current_scheduled_job()
-        if stored_job is None:
+        job = self._controller.restore_if_any()
+        if job is None:
             return
 
-        self.current_unit_name = stored_job.unit_name
-        self.current_is_user_unit = stored_job.is_user_unit
-        self.current_command = stored_job.command
         self._form.cancel_button.set_sensitive(True)
 
-        self._form.restore(stored_job.action, stored_job.amount, stored_job.unit)
+        if job.action is not None and job.unit is not None and job.amount is not None:
+            self._form.restore(job.action, job.amount, job.unit)
 
         self._status_panel.set_status_content(
-            f"Recovered scheduled action: {stored_job.unit_name}",
-            stored_job.command,
+            f"Recovered scheduled action: {job.unit_name}",
+            job.command,
         )
-
-    def _sync_current_job_state(self) -> None:
-        stored_job = self.scheduler_service.get_current_scheduled_job()
-
-        if stored_job is None:
-            self.current_unit_name = None
-            self.current_is_user_unit = False
-            self.current_command = None
-            self._form.cancel_button.set_sensitive(False)
-            return
-
-        self.current_unit_name = stored_job.unit_name
-        self.current_is_user_unit = stored_job.is_user_unit
-        self.current_command = stored_job.command
-        self._form.cancel_button.set_sensitive(True)
 
     def _on_form_changed(self, *_args) -> None:
         self._refresh_summary()
@@ -186,7 +165,8 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _refresh_action_availability(self) -> None:
         self._form.schedule_button.set_sensitive(True)
-        self._sync_current_job_state()
+        job = self._controller.active_job
+        self._form.cancel_button.set_sensitive(job is not None)
 
     def _set_schedule_controls_enabled(self, enabled: bool) -> None:
         self._form.set_enabled(enabled)
@@ -197,8 +177,6 @@ class MainWindow(Adw.ApplicationWindow):
             context.iteration(False)
 
     def _on_schedule_clicked(self, _button: Gtk.Button) -> None:
-        self._sync_current_job_state()
-
         try:
             request = ScheduleRequest(
                 action=self._form.get_selected_action(),
@@ -210,7 +188,7 @@ class MainWindow(Adw.ApplicationWindow):
             self._set_schedule_controls_enabled(False)
             self._flush_ui()
 
-            result = self.scheduler_service.schedule(request)
+            result = self._controller.schedule(request)
             self._apply_schedule_result(result)
             self._notify_schedule_created(request, result)
 
@@ -222,56 +200,45 @@ class MainWindow(Adw.ApplicationWindow):
             self._set_schedule_controls_enabled(True)
 
     def _on_cancel_clicked(self, _button: Gtk.Button) -> None:
-        if not self.current_unit_name:
+        result = self._controller.cancel()
+
+        if result is None:
             self._status_panel.set_status_content("No scheduled action to cancel.", "")
             return
 
-        try:
-            result = self.scheduler_service.cancel(
-                self.current_unit_name,
-                self.current_is_user_unit,
-            )
-            self._status_panel.set_status_content(result.message, "")
-            self.current_unit_name = None
-            self.current_is_user_unit = False
-            self.current_command = None
-            self._form.cancel_button.set_sensitive(False)
-            self._refresh_action_availability()
-            self._notify_schedule_cancelled(result.message)
-        except Exception as exc:
-            self._status_panel.set_status_content(f"Error: {exc}", "")
-            self._notify_error(f"Error: {exc}")
+        self._status_panel.set_status_content(result.message, "")
+        self._form.cancel_button.set_sensitive(False)
+        self._refresh_action_availability()
 
-    def _apply_schedule_result(self, result: ScheduledJobResult) -> None:
+        if result.success:
+            self._notify_cancelled(result.message)
+        else:
+            self._notify_error(result.message)
+
+    def _apply_schedule_result(self, result) -> None:
         self._status_panel.set_status_content(result.message, result.command)
 
         if result.unit_name:
-            self.current_unit_name = result.unit_name
-            self.current_is_user_unit = result.is_user_unit
-            self.current_command = result.command
             self._form.cancel_button.set_sensitive(True)
 
     def _notify_schedule_created(
         self,
         request: ScheduleRequest,
-        result: ScheduledJobResult,
+        result: object,
     ) -> None:
-        application = self.get_application()
-        callback = getattr(application, "show_schedule_notification", None)
-
+        app = self.get_application()
+        callback = getattr(app, "show_schedule_notification", None)
         if callable(callback):
             callback(request, result)
 
-    def _notify_schedule_cancelled(self, message: str) -> None:
-        application = self.get_application()
-        callback = getattr(application, "show_cancellation_notification", None)
-
+    def _notify_cancelled(self, message: str) -> None:
+        app = self.get_application()
+        callback = getattr(app, "show_cancellation_notification", None)
         if callable(callback):
             callback(message)
 
     def _notify_error(self, message: str) -> None:
-        application = self.get_application()
-        callback = getattr(application, "show_error_notification", None)
-
+        app = self.get_application()
+        callback = getattr(app, "show_error_notification", None)
         if callable(callback):
             callback(message)

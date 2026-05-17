@@ -12,8 +12,6 @@ from repositories.scheduled_job_repository import (
     ScheduledJobRepository,
 )
 from services.protocols import PowerActionService
-from services.session_service import SessionService
-from services.shutdown_service import ShutdownService
 from services.systemd_service import SystemdService
 from utils.time_utils import format_human_time, to_seconds
 
@@ -43,17 +41,15 @@ class SchedulerService:
     def __init__(
         self,
         *,
-        session_service: PowerActionService | None = None,
-        shutdown_service: PowerActionService | None = None,
-        systemd_service: SystemdService | None = None,
-        scheduled_job_repository: ScheduledJobRepository | None = None,
+        session_service: PowerActionService,
+        shutdown_service: PowerActionService,
+        systemd_service: SystemdService,
+        scheduled_job_repository: ScheduledJobRepository,
     ) -> None:
-        self.session_service = session_service or SessionService()
-        self.shutdown_service = shutdown_service or ShutdownService()
-        self.systemd_service = systemd_service or SystemdService()
-        self.scheduled_job_repository = (
-            scheduled_job_repository or ScheduledJobRepository()
-        )
+        self.session_service = session_service
+        self.shutdown_service = shutdown_service
+        self.systemd_service = systemd_service
+        self.scheduled_job_repository = scheduled_job_repository
 
     def schedule(self, request: ScheduleRequest) -> ScheduledJobResult:
         validate_schedule_request(request)

@@ -9,7 +9,8 @@ from domain.models import ScheduleRequest
 from services.capability_service import CapabilityService
 from services.notification_service import NotificationService
 from services.palette_service import PaletteService
-from services.scheduler_service import ScheduledJobResult, SchedulerService
+from services.schedule_controller import ScheduleController
+from services.scheduler_service import ScheduledJobResult
 from ui.main_window import MainWindow
 
 
@@ -17,16 +18,15 @@ class PowerSchedulerApplication(Adw.Application):
     def __init__(
         self,
         *,
-        scheduler_service: SchedulerService | None = None,
-        notification_service: NotificationService | None = None,
-        capability_service: CapabilityService | None = None,
+        controller: ScheduleController,
+        capability_service: CapabilityService,
     ) -> None:
         super().__init__(application_id=APP_ID)
         self.connect("activate", self._on_activate)
 
-        self.scheduler_service = scheduler_service or SchedulerService()
-        self.notification_service = notification_service or NotificationService(self)
-        self._capability_service = capability_service or CapabilityService()
+        self._controller = controller
+        self.notification_service: NotificationService | None = None
+        self._capability_service = capability_service
         self._palette_service = PaletteService(self)
         self._app_css_loaded = False
 
@@ -45,7 +45,7 @@ class PowerSchedulerApplication(Adw.Application):
         if window is None:
             window = MainWindow(
                 application=self,
-                scheduler_service=self.scheduler_service,
+                controller=self._controller,
                 capability_service=self._capability_service,
             )
 
@@ -80,42 +80,42 @@ class PowerSchedulerApplication(Adw.Application):
 
         self._app_css_loaded = True
 
+    def set_notification_service(
+        self, notification_service: NotificationService
+    ) -> None:
+        self.notification_service = notification_service
+
     def show_schedule_notification(
         self,
         request: ScheduleRequest,
         result: ScheduledJobResult,
     ) -> None:
-        self.notification_service.send_scheduled_notification(request, result)
+        if self.notification_service is not None:
+            self.notification_service.send_scheduled_notification(request, result)
 
     def show_cancellation_notification(self, message: str) -> None:
-        self.notification_service.send_cancellation_notification(message)
+        if self.notification_service is not None:
+            self.notification_service.send_cancellation_notification(message)
 
     def show_error_notification(self, message: str) -> None:
-        self.notification_service.send_error_notification(message)
+        if self.notification_service is not None:
+            self.notification_service.send_error_notification(message)
 
     def _on_cancel_scheduled_action(
         self,
         _action: Gio.SimpleAction,
         _parameter: GLib.Variant | None,
     ) -> None:
-        stored_job = self.scheduler_service.get_current_scheduled_job()
+        result = self._controller.cancel()
 
-        if stored_job is None:
+        if self.notification_service is None:
+            return
+
+        if result is None:
             self.notification_service.send_cancellation_notification(
                 "No scheduled action was found to cancel."
             )
-            return
-
-        try:
-            result = self.scheduler_service.cancel(
-                stored_job.unit_name,
-                stored_job.is_user_unit,
-            )
-
-            if result.success:
-                self.notification_service.send_cancellation_notification(result.message)
-            else:
-                self.notification_service.send_error_notification(result.message)
-
-        except Exception as exc:
-            self.notification_service.send_error_notification(f"Error: {exc}")
+        elif result.success:
+            self.notification_service.send_cancellation_notification(result.message)
+        else:
+            self.notification_service.send_error_notification(result.message)
