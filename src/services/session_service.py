@@ -4,10 +4,11 @@ import os
 from typing import Final
 
 from domain.enums import PowerAction
+from services.protocols import PowerActionService
 from utils.process_utils import which_optional, which_required
 
 
-class SessionService:
+class SessionService(PowerActionService):
     """
     Handles only session-level actions.
 

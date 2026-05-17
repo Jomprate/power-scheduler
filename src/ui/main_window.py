@@ -5,32 +5,17 @@ import gi
 gi.require_version("Gtk", "4.0")  # type: ignore[attr-defined]
 gi.require_version("Adw", "1")  # type: ignore[attr-defined]
 
-from typing import cast
-
 from gi.repository import Adw, GLib, Gtk
 
 from app.config import APP_NAME
-from domain.enums import PowerAction, TimeUnit
 from domain.models import ScheduleRequest
-from services.capability_service import ActionCapability, CapabilityService
+from services.capability_service import CapabilityService
 from services.scheduler_service import ScheduledJobResult, SchedulerService
+from ui.schedule_form import ScheduleForm
+from ui.status_panel import StatusPanel
 
-
-def _build_action_list_from_caps(
-    caps: dict[str, ActionCapability],
-) -> list[tuple[str, PowerAction]]:
-    ordered_keys = [
-        ("lock", "Lock", PowerAction.LOCK),
-        ("log_out", "Log out", PowerAction.LOG_OUT),
-        ("suspend", "Suspend", PowerAction.SUSPEND),
-        ("hibernate", "Hibernate", PowerAction.HIBERNATE),
-        ("power_off", "Power off", PowerAction.POWER_OFF),
-    ]
-    return [
-        (label, action)
-        for key, label, action in ordered_keys
-        if caps.get(key) and caps[key].available
-    ]
+DEFAULT_WIDTH = 820
+DEFAULT_HEIGHT = 460
 
 
 class MainWindow(Adw.ApplicationWindow):
@@ -44,26 +29,20 @@ class MainWindow(Adw.ApplicationWindow):
         super().__init__(**kwargs)
 
         self.set_title(APP_NAME)
-        self.set_default_size(820, 460)
+        self.set_default_size(DEFAULT_WIDTH, DEFAULT_HEIGHT)
         self.set_resizable(True)
 
         self.scheduler_service = scheduler_service or SchedulerService()
         self.capability_service = capability_service or CapabilityService()
-        self._action_items: list[tuple[str, PowerAction]] = []
         self.current_unit_name: str | None = None
         self.current_is_user_unit: bool = False
         self.current_command: str | None = None
 
-        self.action_dropdown: Gtk.DropDown = cast(Gtk.DropDown, None)
-        self.amount_spin: Gtk.SpinButton = cast(Gtk.SpinButton, None)
-        self.unit_dropdown: Gtk.DropDown = cast(Gtk.DropDown, None)
-        self.summary_label: Gtk.Label = cast(Gtk.Label, None)
-        self.status_text_view: Gtk.TextView = cast(Gtk.TextView, None)
-        self.status_buffer: Gtk.TextBuffer = cast(Gtk.TextBuffer, None)
-        self.schedule_button: Gtk.Button = cast(Gtk.Button, None)
-        self.cancel_button: Gtk.Button = cast(Gtk.Button, None)
+        self._form = ScheduleForm(self.capability_service)
+        self._status_panel = StatusPanel()
 
         self._build_ui()
+        self._connect_signals()
         self._restore_saved_job_if_any()
         self._refresh_summary()
         self._refresh_action_availability()
@@ -105,10 +84,7 @@ class MainWindow(Adw.ApplicationWindow):
         page_box.add_css_class("content-surface")
         clamp.set_child(page_box)
 
-        hero_box = Gtk.Box(
-            orientation=Gtk.Orientation.VERTICAL,
-            spacing=4,
-        )
+        hero_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         hero_box.add_css_class("hero-box")
         page_box.append(hero_box)
 
@@ -152,284 +128,16 @@ class MainWindow(Adw.ApplicationWindow):
         form_frame.add_css_class("card")
         form_frame.add_css_class("main-card")
         content_row.append(form_frame)
+        form_frame.set_child(self._form)
 
-        form_box = Gtk.Box(
-            orientation=Gtk.Orientation.VERTICAL,
-            spacing=14,
-            margin_top=16,
-            margin_bottom=16,
-            margin_start=16,
-            margin_end=16,
-        )
-        form_frame.set_child(form_box)
+        content_row.append(self._status_panel)
 
-        form_header = Gtk.Box(
-            orientation=Gtk.Orientation.VERTICAL,
-            spacing=2,
-        )
-        form_box.append(form_header)
-
-        form_title = Gtk.Label()
-        form_title.set_markup(
-            "<span size='13500' weight='bold'>New scheduled action</span>"
-        )
-        form_title.set_halign(Gtk.Align.START)
-        form_title.set_xalign(0.0)
-        form_header.append(form_title)
-
-        form_description = Gtk.Label(
-            label="Choose the action and the delay before it runs."
-        )
-        form_description.set_wrap(True)
-        form_description.set_halign(Gtk.Align.START)
-        form_description.set_xalign(0.0)
-        form_description.add_css_class("dim-label")
-        form_header.append(form_description)
-
-        action_section = Gtk.Box(
-            orientation=Gtk.Orientation.VERTICAL,
-            spacing=5,
-        )
-        form_box.append(action_section)
-
-        action_label = Gtk.Label(label="Action")
-        action_label.set_halign(Gtk.Align.START)
-        action_label.set_xalign(0.0)
-        action_label.add_css_class("section-label")
-        action_section.append(action_label)
-
-        self._action_items = self._build_action_list()
-        action_labels = [label for label, _ in self._action_items]
-        action_strings = Gtk.StringList.new(action_labels)
-        action_dropdown = Gtk.DropDown.new(action_strings)
-        action_dropdown.set_selected(0)
-        action_dropdown.add_css_class("input-control")
-        action_dropdown.connect("notify::selected", self._on_form_changed)
-        action_section.append(action_dropdown)
-        self.action_dropdown = action_dropdown
-
-        time_section = Gtk.Box(
-            orientation=Gtk.Orientation.VERTICAL,
-            spacing=5,
-        )
-        form_box.append(time_section)
-
-        time_label = Gtk.Label(label="Delay")
-        time_label.set_halign(Gtk.Align.START)
-        time_label.set_xalign(0.0)
-        time_label.add_css_class("section-label")
-        time_section.append(time_label)
-
-        time_row = Gtk.Box(
-            orientation=Gtk.Orientation.HORIZONTAL,
-            spacing=8,
-        )
-        time_section.append(time_row)
-
-        amount_spin = Gtk.SpinButton.new_with_range(1, 999999, 1)
-        amount_spin.set_value(10)
-        amount_spin.set_hexpand(True)
-        amount_spin.set_width_chars(7)
-        amount_spin.add_css_class("input-control")
-        amount_spin.connect("value-changed", self._on_form_changed)
-        time_row.append(amount_spin)
-        self.amount_spin = amount_spin
-
-        unit_dropdown = Gtk.DropDown.new_from_strings(
-            [
-                "Seconds",
-                "Minutes",
-                "Hours",
-            ]
-        )
-        unit_dropdown.set_selected(0)
-        unit_dropdown.add_css_class("input-control")
-        unit_dropdown.connect("notify::selected", self._on_form_changed)
-        time_row.append(unit_dropdown)
-        self.unit_dropdown = unit_dropdown
-
-        presets_section = Gtk.Box(
-            orientation=Gtk.Orientation.VERTICAL,
-            spacing=6,
-        )
-        form_box.append(presets_section)
-
-        presets_label = Gtk.Label(label="Quick presets")
-        presets_label.set_halign(Gtk.Align.START)
-        presets_label.set_xalign(0.0)
-        presets_label.add_css_class("section-label")
-        presets_section.append(presets_label)
-
-        presets_wrap = Gtk.FlowBox()
-        presets_wrap.set_selection_mode(Gtk.SelectionMode.NONE)
-        presets_wrap.set_max_children_per_line(6)
-        presets_wrap.set_row_spacing(6)
-        presets_wrap.set_column_spacing(6)
-        presets_wrap.add_css_class("presets-wrap")
-        presets_section.append(presets_wrap)
-
-        preset_values = [
-            ("10s", 10, TimeUnit.SECONDS),
-            ("30s", 30, TimeUnit.SECONDS),
-            ("1m", 1, TimeUnit.MINUTES),
-            ("5m", 5, TimeUnit.MINUTES),
-            ("15m", 15, TimeUnit.MINUTES),
-            ("1h", 1, TimeUnit.HOURS),
-        ]
-
-        for label, amount, unit in preset_values:
-            button = Gtk.Button(label=label)
-            button.add_css_class("pill-button")
-            button.connect("clicked", self._on_preset_clicked, amount, unit)
-            presets_wrap.insert(button, -1)
-
-        actions_box = Gtk.Box(
-            orientation=Gtk.Orientation.HORIZONTAL,
-            spacing=8,
-        )
-        form_box.append(actions_box)
-
-        schedule_button = Gtk.Button(label="Schedule")
-        schedule_button.add_css_class("suggested-action")
-        schedule_button.add_css_class("primary-button")
-        schedule_button.set_hexpand(True)
-        schedule_button.connect("clicked", self._on_schedule_clicked)
-        actions_box.append(schedule_button)
-        self.schedule_button = schedule_button
-
-        cancel_button = Gtk.Button(label="Cancel scheduled action")
-        cancel_button.add_css_class("primary-button")
-        cancel_button.set_hexpand(True)
-        cancel_button.set_sensitive(False)
-        cancel_button.connect("clicked", self._on_cancel_clicked)
-        actions_box.append(cancel_button)
-        self.cancel_button = cancel_button
-
-        side_box = Gtk.Box(
-            orientation=Gtk.Orientation.VERTICAL,
-            spacing=12,
-        )
-        side_box.set_size_request(280, -1)
-        side_box.set_valign(Gtk.Align.START)
-        content_row.append(side_box)
-
-        summary_frame = Gtk.Frame()
-        summary_frame.add_css_class("card")
-        summary_frame.add_css_class("status-card")
-        side_box.append(summary_frame)
-
-        summary_box = Gtk.Box(
-            orientation=Gtk.Orientation.VERTICAL,
-            spacing=8,
-            margin_top=14,
-            margin_bottom=14,
-            margin_start=14,
-            margin_end=14,
-        )
-        summary_frame.set_child(summary_box)
-
-        summary_title = Gtk.Label()
-        summary_title.set_markup("<span weight='bold'>Summary</span>")
-        summary_title.set_halign(Gtk.Align.START)
-        summary_title.set_xalign(0.0)
-        summary_box.append(summary_title)
-
-        self.summary_label = Gtk.Label(label="")
-        self.summary_label.set_wrap(True)
-        self.summary_label.set_halign(Gtk.Align.START)
-        self.summary_label.set_xalign(0.0)
-        summary_box.append(self.summary_label)
-
-        status_frame = Gtk.Frame()
-        status_frame.add_css_class("card")
-        status_frame.add_css_class("status-card")
-        side_box.append(status_frame)
-
-        status_outer_box = Gtk.Box(
-            orientation=Gtk.Orientation.VERTICAL,
-            spacing=8,
-            margin_top=14,
-            margin_bottom=14,
-            margin_start=14,
-            margin_end=14,
-        )
-        status_frame.set_child(status_outer_box)
-
-        status_title = Gtk.Label()
-        status_title.set_markup("<span weight='bold'>Status</span>")
-        status_title.set_halign(Gtk.Align.START)
-        status_title.set_xalign(0.0)
-        status_outer_box.append(status_title)
-
-        status_scroll = Gtk.ScrolledWindow()
-        status_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
-        status_scroll.set_min_content_height(120)
-        status_scroll.set_max_content_height(180)
-        status_scroll.set_propagate_natural_height(False)
-        status_scroll.set_has_frame(False)
-        status_outer_box.append(status_scroll)
-
-        self.status_buffer = Gtk.TextBuffer()
-        self.status_text_view = Gtk.TextView.new_with_buffer(self.status_buffer)
-        self.status_text_view.set_editable(False)
-        self.status_text_view.set_cursor_visible(False)
-        self.status_text_view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
-        self.status_text_view.set_left_margin(0)
-        self.status_text_view.set_right_margin(0)
-        self.status_text_view.set_top_margin(0)
-        self.status_text_view.set_bottom_margin(0)
-        self.status_text_view.add_css_class("dim-label")
-        status_scroll.set_child(self.status_text_view)
-
-        self._set_status_content("Choose an action and a delay, then schedule it.", "")
-
-        hints_frame = Gtk.Frame()
-        hints_frame.add_css_class("card")
-        hints_frame.add_css_class("status-card")
-        side_box.append(hints_frame)
-
-        hints_box = Gtk.Box(
-            orientation=Gtk.Orientation.VERTICAL,
-            spacing=6,
-            margin_top=14,
-            margin_bottom=14,
-            margin_start=14,
-            margin_end=14,
-        )
-        hints_frame.set_child(hints_box)
-
-        hints_title = Gtk.Label()
-        hints_title.set_markup("<span weight='bold'>Notes</span>")
-        hints_title.set_halign(Gtk.Align.START)
-        hints_title.set_xalign(0.0)
-        hints_box.append(hints_title)
-
-        hints_text = Gtk.Label(
-            label=(
-                "Scheduled actions are created through system tools so they can "
-                "continue after this window is closed."
-            )
-        )
-        hints_text.set_wrap(True)
-        hints_text.set_halign(Gtk.Align.START)
-        hints_text.set_xalign(0.0)
-        hints_text.add_css_class("dim-label")
-        hints_box.append(hints_text)
-
-    def _set_status_content(self, status_text: str, command_text: str | None) -> None:
-        clean_status = status_text.strip()
-        clean_command = (command_text or "").strip()
-
-        if clean_status and clean_command:
-            combined = f"{clean_status}\n\n{clean_command}"
-        elif clean_status:
-            combined = clean_status
-        elif clean_command:
-            combined = clean_command
-        else:
-            combined = ""
-
-        self.status_buffer.set_text(combined)
+    def _connect_signals(self) -> None:
+        self._form.action_dropdown.connect("notify::selected", self._on_form_changed)
+        self._form.amount_spin.connect("value-changed", self._on_form_changed)
+        self._form.unit_dropdown.connect("notify::selected", self._on_form_changed)
+        self._form.schedule_button.connect("clicked", self._on_schedule_clicked)
+        self._form.cancel_button.connect("clicked", self._on_cancel_clicked)
 
     def _restore_saved_job_if_any(self) -> None:
         stored_job = self.scheduler_service.get_current_scheduled_job()
@@ -439,16 +147,11 @@ class MainWindow(Adw.ApplicationWindow):
         self.current_unit_name = stored_job.unit_name
         self.current_is_user_unit = stored_job.is_user_unit
         self.current_command = stored_job.command
-        self.cancel_button.set_sensitive(True)
+        self._form.cancel_button.set_sensitive(True)
 
-        action_index = self._get_action_index(stored_job.action)
-        if action_index is not None:
-            self.action_dropdown.set_selected(action_index)
+        self._form.restore(stored_job.action, stored_job.amount, stored_job.unit)
 
-        self.amount_spin.set_value(stored_job.amount)
-        self.unit_dropdown.set_selected(self._get_unit_index(stored_job.unit))
-
-        self._set_status_content(
+        self._status_panel.set_status_content(
             f"Recovered scheduled action: {stored_job.unit_name}",
             stored_job.command,
         )
@@ -460,47 +163,33 @@ class MainWindow(Adw.ApplicationWindow):
             self.current_unit_name = None
             self.current_is_user_unit = False
             self.current_command = None
-            self.cancel_button.set_sensitive(False)
+            self._form.cancel_button.set_sensitive(False)
             return
 
         self.current_unit_name = stored_job.unit_name
         self.current_is_user_unit = stored_job.is_user_unit
         self.current_command = stored_job.command
-        self.cancel_button.set_sensitive(True)
+        self._form.cancel_button.set_sensitive(True)
 
     def _on_form_changed(self, *_args) -> None:
         self._refresh_summary()
         self._refresh_action_availability()
 
     def _refresh_summary(self) -> None:
-        action_label = self._get_selected_action_label()
-        amount = int(self.amount_spin.get_value())
-        unit_label = self._get_selected_unit_label(amount)
+        action_label = self._form.get_selected_action_label()
+        amount = self._form.get_amount()
+        unit_label = self._form.get_selected_unit_label(amount)
 
-        self.summary_label.set_text(
+        self._status_panel.set_summary(
             f"{action_label} will run in {amount} {unit_label.lower()}."
         )
 
     def _refresh_action_availability(self) -> None:
-        self.schedule_button.set_sensitive(True)
+        self._form.schedule_button.set_sensitive(True)
         self._sync_current_job_state()
 
-    def _on_preset_clicked(
-        self,
-        _button: Gtk.Button,
-        amount: int,
-        unit: TimeUnit,
-    ) -> None:
-        self.amount_spin.set_value(amount)
-        self.unit_dropdown.set_selected(self._get_unit_index(unit))
-        self._refresh_summary()
-        self._refresh_action_availability()
-
     def _set_schedule_controls_enabled(self, enabled: bool) -> None:
-        self.schedule_button.set_sensitive(enabled)
-        self.action_dropdown.set_sensitive(enabled)
-        self.amount_spin.set_sensitive(enabled)
-        self.unit_dropdown.set_sensitive(enabled)
+        self._form.set_enabled(enabled)
 
     def _flush_ui(self) -> None:
         context = GLib.MainContext.default()
@@ -512,12 +201,12 @@ class MainWindow(Adw.ApplicationWindow):
 
         try:
             request = ScheduleRequest(
-                action=self._get_selected_action(),
-                amount=int(self.amount_spin.get_value()),
-                unit=self._get_selected_unit(),
+                action=self._form.get_selected_action(),
+                amount=self._form.get_amount(),
+                unit=self._form.get_selected_unit(),
             )
 
-            self._set_status_content("Scheduling action...", "")
+            self._status_panel.set_status_content("Scheduling action...", "")
             self._set_schedule_controls_enabled(False)
             self._flush_ui()
 
@@ -526,7 +215,7 @@ class MainWindow(Adw.ApplicationWindow):
             self._notify_schedule_created(request, result)
 
         except Exception as exc:
-            self._set_status_content(f"Error: {exc}", "")
+            self._status_panel.set_status_content(f"Error: {exc}", "")
             self._notify_error(f"Error: {exc}")
 
         finally:
@@ -534,7 +223,7 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _on_cancel_clicked(self, _button: Gtk.Button) -> None:
         if not self.current_unit_name:
-            self._set_status_content("No scheduled action to cancel.", "")
+            self._status_panel.set_status_content("No scheduled action to cancel.", "")
             return
 
         try:
@@ -542,25 +231,25 @@ class MainWindow(Adw.ApplicationWindow):
                 self.current_unit_name,
                 self.current_is_user_unit,
             )
-            self._set_status_content(result.message, "")
+            self._status_panel.set_status_content(result.message, "")
             self.current_unit_name = None
             self.current_is_user_unit = False
             self.current_command = None
-            self.cancel_button.set_sensitive(False)
+            self._form.cancel_button.set_sensitive(False)
             self._refresh_action_availability()
             self._notify_schedule_cancelled(result.message)
         except Exception as exc:
-            self._set_status_content(f"Error: {exc}", "")
+            self._status_panel.set_status_content(f"Error: {exc}", "")
             self._notify_error(f"Error: {exc}")
 
     def _apply_schedule_result(self, result: ScheduledJobResult) -> None:
-        self._set_status_content(result.message, result.command)
+        self._status_panel.set_status_content(result.message, result.command)
 
         if result.unit_name:
             self.current_unit_name = result.unit_name
             self.current_is_user_unit = result.is_user_unit
             self.current_command = result.command
-            self.cancel_button.set_sensitive(True)
+            self._form.cancel_button.set_sensitive(True)
 
     def _notify_schedule_created(
         self,
@@ -586,59 +275,3 @@ class MainWindow(Adw.ApplicationWindow):
 
         if callable(callback):
             callback(message)
-
-    def _build_action_list(self) -> list[tuple[str, PowerAction]]:
-        return _build_action_list_from_caps(self.capability_service.get_capabilities())
-
-    def _get_selected_action(self) -> PowerAction:
-        index = self.action_dropdown.get_selected()
-
-        if 0 <= index < len(self._action_items):
-            return self._action_items[index][1]
-
-        return self._action_items[0][1]
-
-    def _get_selected_action_label(self) -> str:
-        index = self.action_dropdown.get_selected()
-
-        if 0 <= index < len(self._action_items):
-            return self._action_items[index][0]
-
-        return self._action_items[0][0]
-
-    def _get_selected_unit(self) -> TimeUnit:
-        index = self.unit_dropdown.get_selected()
-
-        mapping = {
-            0: TimeUnit.SECONDS,
-            1: TimeUnit.MINUTES,
-            2: TimeUnit.HOURS,
-        }
-
-        return mapping[index]
-
-    def _get_selected_unit_label(self, amount: int) -> str:
-        index = self.unit_dropdown.get_selected()
-
-        if index == 0:
-            return "Second" if amount == 1 else "Seconds"
-
-        if index == 1:
-            return "Minute" if amount == 1 else "Minutes"
-
-        return "Hour" if amount == 1 else "Hours"
-
-    def _get_action_index(self, action: PowerAction) -> int | None:
-        for i, (_, act) in enumerate(self._action_items):
-            if act == action:
-                return i
-        return None
-
-    @staticmethod
-    def _get_unit_index(unit: TimeUnit) -> int:
-        mapping = {
-            TimeUnit.SECONDS: 0,
-            TimeUnit.MINUTES: 1,
-            TimeUnit.HOURS: 2,
-        }
-        return mapping[unit]

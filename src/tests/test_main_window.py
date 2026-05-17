@@ -4,7 +4,7 @@ import unittest
 
 from domain.enums import PowerAction
 from services.capability_service import ActionCapability
-from ui.main_window import _build_action_list_from_caps
+from ui.schedule_form import _build_action_list_from_caps
 
 
 def _make_cap(available: bool) -> ActionCapability:

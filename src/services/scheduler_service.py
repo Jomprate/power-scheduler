@@ -11,6 +11,7 @@ from repositories.scheduled_job_repository import (
     ScheduledJobRecord,
     ScheduledJobRepository,
 )
+from services.protocols import PowerActionService
 from services.session_service import SessionService
 from services.shutdown_service import ShutdownService
 from services.systemd_service import SystemdService
@@ -42,8 +43,8 @@ class SchedulerService:
     def __init__(
         self,
         *,
-        session_service: SessionService | None = None,
-        shutdown_service: ShutdownService | None = None,
+        session_service: PowerActionService | None = None,
+        shutdown_service: PowerActionService | None = None,
         systemd_service: SystemdService | None = None,
         scheduled_job_repository: ScheduledJobRepository | None = None,
     ) -> None:

@@ -3,10 +3,11 @@ from __future__ import annotations
 from typing import Final
 
 from domain.enums import PowerAction
+from services.protocols import PowerActionService
 from utils.process_utils import which_required
 
 
-class ShutdownService:
+class ShutdownService(PowerActionService):
     """
     Handles only system-level power actions.
 
