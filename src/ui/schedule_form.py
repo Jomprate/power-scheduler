@@ -159,7 +159,7 @@ class ScheduleForm(Gtk.Box):
         self, _button: Gtk.Button, amount: int, unit: TimeUnit
     ) -> None:
         self.amount_spin.set_value(amount)
-        self.unit_dropdown.set_selected(self._get_unit_index(unit))
+        self.unit_dropdown.set_selected(self.get_unit_index(unit))
 
     def rebuild_action_list(self) -> None:
         self._action_items = _build_action_list_from_caps(
