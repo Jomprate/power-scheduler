@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from gi.repository import Gio
 
-from domain.models import ScheduleRequest
-from services.scheduler_service import ScheduledJobResult
+from domain.models import ScheduledJobResult, ScheduleRequest
 from utils.time_utils import format_human_time
 
 

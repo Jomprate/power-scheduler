@@ -56,8 +56,7 @@ def main() -> int:
     capability_service = CapabilityService()
 
     scheduler_service = SchedulerService(
-        session_service=session_service,
-        shutdown_service=shutdown_service,
+        action_services=[session_service, shutdown_service],
         systemd_service=systemd_service,
         scheduled_job_repository=scheduled_job_repository,
     )

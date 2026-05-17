@@ -5,12 +5,11 @@ from pathlib import Path
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 
 from app.config import APP_ID
-from domain.models import ScheduleRequest
+from domain.models import ScheduledJobResult, ScheduleRequest
 from services.capability_service import CapabilityService
 from services.notification_service import NotificationService
 from services.palette_service import PaletteService
 from services.schedule_controller import ScheduleController
-from services.scheduler_service import ScheduledJobResult
 from ui.main_window import MainWindow
 
 

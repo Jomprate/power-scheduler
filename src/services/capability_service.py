@@ -3,6 +3,26 @@ from __future__ import annotations
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Protocol
+
+
+class SystemProbe(Protocol):
+    def find_binary(self, name: str) -> str | None: ...
+    def read_text_file(self, path: Path) -> str: ...
+
+
+class HostSystemProbe:
+    def find_binary(self, name: str) -> str | None:
+        resolved = shutil.which(name)
+        return resolved or None
+
+    def read_text_file(self, path: Path) -> str:
+        try:
+            if not path.exists():
+                return ""
+            return path.read_text(encoding="utf-8").strip()
+        except OSError:
+            return ""
 
 
 @dataclass(slots=True)
@@ -13,32 +33,24 @@ class ActionCapability:
 
 
 class CapabilityService:
-    """
-    Detects whether each supported action is likely available on the host.
-
-    Design goals:
-    - do not execute destructive power actions just to "test" them
-    - expose capability per action instead of a single global boolean
-    - keep the checks lightweight and safe for app startup / UI refresh
-    """
-
     SYS_POWER_STATE_PATH = Path("/sys/power/state")
     SYS_POWER_DISK_PATH = Path("/sys/power/disk")
 
-    @classmethod
-    def get_capabilities(cls) -> dict[str, ActionCapability]:
+    def __init__(self, probe: SystemProbe | None = None) -> None:
+        self._probe = probe or HostSystemProbe()
+
+    def get_capabilities(self) -> dict[str, ActionCapability]:
         return {
-            "lock": cls.get_lock_capability(),
-            "log_out": cls.get_logout_capability(),
-            "suspend": cls.get_suspend_capability(),
-            "hibernate": cls.get_hibernate_capability(),
-            "power_off": cls.get_power_off_capability(),
-            "schedule": cls.get_schedule_capability(),
+            "lock": self.get_lock_capability(),
+            "log_out": self.get_logout_capability(),
+            "suspend": self.get_suspend_capability(),
+            "hibernate": self.get_hibernate_capability(),
+            "power_off": self.get_power_off_capability(),
+            "schedule": self.get_schedule_capability(),
         }
 
-    @classmethod
-    def get_schedule_capability(cls) -> ActionCapability:
-        systemd_run = cls._which("systemd-run")
+    def get_schedule_capability(self) -> ActionCapability:
+        systemd_run = self._probe.find_binary("systemd-run")
 
         if systemd_run:
             return ActionCapability(
@@ -53,9 +65,8 @@ class CapabilityService:
             reason="systemd-run was not found in PATH.",
         )
 
-    @classmethod
-    def get_lock_capability(cls) -> ActionCapability:
-        loginctl = cls._which("loginctl")
+    def get_lock_capability(self) -> ActionCapability:
+        loginctl = self._probe.find_binary("loginctl")
 
         if loginctl:
             return ActionCapability(
@@ -70,9 +81,8 @@ class CapabilityService:
             reason="loginctl was not found in PATH.",
         )
 
-    @classmethod
-    def get_logout_capability(cls) -> ActionCapability:
-        gnome_session_quit = cls._which("gnome-session-quit")
+    def get_logout_capability(self) -> ActionCapability:
+        gnome_session_quit = self._probe.find_binary("gnome-session-quit")
         if gnome_session_quit:
             return ActionCapability(
                 action_key="log_out",
@@ -80,7 +90,7 @@ class CapabilityService:
                 reason=f"Resolved gnome-session-quit at {gnome_session_quit}.",
             )
 
-        loginctl = cls._which("loginctl")
+        loginctl = self._probe.find_binary("loginctl")
         if loginctl:
             return ActionCapability(
                 action_key="log_out",
@@ -97,9 +107,8 @@ class CapabilityService:
             reason="Neither gnome-session-quit nor loginctl was found in PATH.",
         )
 
-    @classmethod
-    def get_suspend_capability(cls) -> ActionCapability:
-        systemctl = cls._which("systemctl")
+    def get_suspend_capability(self) -> ActionCapability:
+        systemctl = self._probe.find_binary("systemctl")
         if not systemctl:
             return ActionCapability(
                 action_key="suspend",
@@ -107,7 +116,7 @@ class CapabilityService:
                 reason="systemctl was not found in PATH.",
             )
 
-        if cls._kernel_supports_suspend():
+        if self._kernel_supports_suspend():
             return ActionCapability(
                 action_key="suspend",
                 available=True,
@@ -126,9 +135,8 @@ class CapabilityService:
             ),
         )
 
-    @classmethod
-    def get_hibernate_capability(cls) -> ActionCapability:
-        systemctl = cls._which("systemctl")
+    def get_hibernate_capability(self) -> ActionCapability:
+        systemctl = self._probe.find_binary("systemctl")
         if not systemctl:
             return ActionCapability(
                 action_key="hibernate",
@@ -136,7 +144,7 @@ class CapabilityService:
                 reason="systemctl was not found in PATH.",
             )
 
-        if cls._kernel_supports_hibernate():
+        if self._kernel_supports_hibernate():
             return ActionCapability(
                 action_key="hibernate",
                 available=True,
@@ -155,9 +163,8 @@ class CapabilityService:
             ),
         )
 
-    @classmethod
-    def get_power_off_capability(cls) -> ActionCapability:
-        systemctl = cls._which("systemctl")
+    def get_power_off_capability(self) -> ActionCapability:
+        systemctl = self._probe.find_binary("systemctl")
 
         if systemctl:
             return ActionCapability(
@@ -172,19 +179,17 @@ class CapabilityService:
             reason="systemctl was not found in PATH.",
         )
 
-    @classmethod
-    def _kernel_supports_suspend(cls) -> bool:
-        states = cls._read_text_if_exists(cls.SYS_POWER_STATE_PATH)
+    def _kernel_supports_suspend(self) -> bool:
+        states = self._probe.read_text_file(self.SYS_POWER_STATE_PATH)
         if not states:
             return False
 
         supported_tokens = {"mem", "freeze", "standby"}
         return any(token in states.split() for token in supported_tokens)
 
-    @classmethod
-    def _kernel_supports_hibernate(cls) -> bool:
-        states = cls._read_text_if_exists(cls.SYS_POWER_STATE_PATH)
-        disk_modes = cls._read_text_if_exists(cls.SYS_POWER_DISK_PATH)
+    def _kernel_supports_hibernate(self) -> bool:
+        states = self._probe.read_text_file(self.SYS_POWER_STATE_PATH)
+        disk_modes = self._probe.read_text_file(self.SYS_POWER_DISK_PATH)
 
         if not states or not disk_modes:
             return False
@@ -193,17 +198,3 @@ class CapabilityService:
         has_disk_mode = bool(disk_modes.strip())
 
         return has_disk_state and has_disk_mode
-
-    @staticmethod
-    def _read_text_if_exists(path: Path) -> str:
-        try:
-            if not path.exists():
-                return ""
-            return path.read_text(encoding="utf-8").strip()
-        except OSError:
-            return ""
-
-    @staticmethod
-    def _which(binary_name: str) -> str | None:
-        resolved = shutil.which(binary_name)
-        return resolved or None

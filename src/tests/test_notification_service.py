@@ -4,9 +4,8 @@ import unittest
 from unittest.mock import Mock
 
 from domain.enums import PowerAction, TimeUnit
-from domain.models import ScheduleRequest
+from domain.models import ScheduledJobResult, ScheduleRequest
 from services.notification_service import NotificationService
-from services.scheduler_service import ScheduledJobResult
 
 
 class NotificationServiceBuilderTests(unittest.TestCase):

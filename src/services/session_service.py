@@ -22,6 +22,8 @@ class SessionService(PowerActionService):
     - handle system power actions like suspend, hibernate or power off
     """
 
+    is_user_level: bool = True
+
     SUPPORTED_ACTIONS: Final[set[PowerAction]] = {
         PowerAction.LOCK,
         PowerAction.LOG_OUT,

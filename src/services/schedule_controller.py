@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from domain.enums import PowerAction, TimeUnit
-from domain.models import ScheduleRequest
-from services.scheduler_service import ScheduledJobResult, SchedulerService
+from domain.models import ScheduledJobResult, ScheduleRequest
+from services.scheduler_service import SchedulerService
 
 
 @dataclass

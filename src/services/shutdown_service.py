@@ -21,6 +21,8 @@ class ShutdownService(PowerActionService):
     - handle session actions like lock or log out
     """
 
+    is_user_level: bool = False
+
     SUPPORTED_ACTIONS: Final[set[PowerAction]] = {
         PowerAction.SUSPEND,
         PowerAction.HIBERNATE,

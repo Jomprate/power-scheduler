@@ -11,18 +11,18 @@ from services.scheduler_service import SchedulerService
 class SchedulerServiceTests(unittest.TestCase):
     def setUp(self) -> None:
         self.session_service = Mock()
+        self.session_service.is_user_level = True
         self.shutdown_service = Mock()
+        self.shutdown_service.is_user_level = False
         self.systemd_service = Mock()
         self.scheduled_job_repository = Mock()
 
         self.service = SchedulerService(
-            session_service=self.session_service,
-            shutdown_service=self.shutdown_service,
+            action_services=[self.session_service, self.shutdown_service],
             systemd_service=self.systemd_service,
             scheduled_job_repository=self.scheduled_job_repository,
         )
 
-    @patch("services.scheduler_service.validate_schedule_request")
     @patch("services.scheduler_service.format_human_time", return_value="15 seconds")
     @patch.object(
         SchedulerService,
@@ -33,7 +33,6 @@ class SchedulerServiceTests(unittest.TestCase):
         self,
         mock_generate_unit_name,
         mock_format_human_time,
-        mock_validate_schedule_request,
     ) -> None:
         request = ScheduleRequest(
             action=PowerAction.LOCK,
@@ -72,7 +71,6 @@ class SchedulerServiceTests(unittest.TestCase):
 
         result = self.service.schedule(request)
 
-        mock_validate_schedule_request.assert_called_once_with(request)
         mock_generate_unit_name.assert_called_once_with(PowerAction.LOCK)
         mock_format_human_time.assert_called_once_with(15, TimeUnit.SECONDS)
 
@@ -101,7 +99,6 @@ class SchedulerServiceTests(unittest.TestCase):
             "Scheduled lock in 15 seconds.\nUnit: power-scheduler-lock-123\ntimer created",
         )
 
-    @patch("services.scheduler_service.validate_schedule_request")
     @patch("services.scheduler_service.format_human_time", return_value="2 minutes")
     @patch.object(
         SchedulerService,
@@ -112,7 +109,6 @@ class SchedulerServiceTests(unittest.TestCase):
         self,
         mock_generate_unit_name,
         mock_format_human_time,
-        mock_validate_schedule_request,
     ) -> None:
         request = ScheduleRequest(
             action=PowerAction.SUSPEND,
@@ -148,7 +144,6 @@ class SchedulerServiceTests(unittest.TestCase):
 
         result = self.service.schedule(request)
 
-        mock_validate_schedule_request.assert_called_once_with(request)
         mock_generate_unit_name.assert_called_once_with(PowerAction.SUSPEND)
         mock_format_human_time.assert_called_once_with(2, TimeUnit.MINUTES)
 
@@ -173,7 +168,6 @@ class SchedulerServiceTests(unittest.TestCase):
             "Scheduled suspend in 2 minutes.\nUnit: power-scheduler-suspend-123\nsome warning",
         )
 
-    @patch("services.scheduler_service.validate_schedule_request")
     @patch("services.scheduler_service.format_human_time", return_value="10 seconds")
     @patch.object(
         SchedulerService,
@@ -184,7 +178,6 @@ class SchedulerServiceTests(unittest.TestCase):
         self,
         mock_generate_unit_name,
         mock_format_human_time,
-        mock_validate_schedule_request,
     ) -> None:
         request = ScheduleRequest(
             action=PowerAction.LOCK,
@@ -214,7 +207,6 @@ class SchedulerServiceTests(unittest.TestCase):
 
         result = self.service.schedule(request)
 
-        mock_validate_schedule_request.assert_called_once_with(request)
         mock_generate_unit_name.assert_called_once_with(PowerAction.LOCK)
         mock_format_human_time.assert_called_once_with(10, TimeUnit.SECONDS)
 
@@ -267,11 +259,11 @@ class SchedulerServiceTests(unittest.TestCase):
 
     def test_is_user_action_returns_false_for_non_session_actions(self) -> None:
         self.session_service.supports.return_value = False
+        self.shutdown_service.supports.return_value = True
 
         result = self.service._is_user_action(PowerAction.SUSPEND)
 
         self.assertFalse(result)
-        self.session_service.supports.assert_called_once_with(PowerAction.SUSPEND)
 
     def test_generate_unit_name_contains_action_value(self) -> None:
         unit_name = self.service._generate_unit_name(PowerAction.LOCK)

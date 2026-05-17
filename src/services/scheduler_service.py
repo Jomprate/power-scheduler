@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import shlex
-from dataclasses import dataclass
+from collections.abc import Sequence
 from datetime import datetime
 
 from domain.enums import PowerAction
-from domain.models import ScheduleRequest
-from domain.validators import validate_schedule_request
+from domain.models import ScheduledJobResult, ScheduleRequest
 from repositories.scheduled_job_repository import (
     ScheduledJobRecord,
     ScheduledJobRepository,
@@ -14,15 +13,6 @@ from repositories.scheduled_job_repository import (
 from services.protocols import PowerActionService
 from services.systemd_service import SystemdService
 from utils.time_utils import format_human_time, to_seconds
-
-
-@dataclass(slots=True)
-class ScheduledJobResult:
-    success: bool
-    message: str
-    unit_name: str | None = None
-    is_user_unit: bool = False
-    command: str | None = None
 
 
 class SchedulerService:
@@ -41,19 +31,15 @@ class SchedulerService:
     def __init__(
         self,
         *,
-        session_service: PowerActionService,
-        shutdown_service: PowerActionService,
+        action_services: Sequence[PowerActionService],
         systemd_service: SystemdService,
         scheduled_job_repository: ScheduledJobRepository,
     ) -> None:
-        self.session_service = session_service
-        self.shutdown_service = shutdown_service
+        self._action_services = list(action_services)
         self.systemd_service = systemd_service
         self.scheduled_job_repository = scheduled_job_repository
 
     def schedule(self, request: ScheduleRequest) -> ScheduledJobResult:
-        validate_schedule_request(request)
-
         unit_name = self._generate_unit_name(request.action)
         is_user_unit = self._is_user_action(request.action)
         action_command = self._resolve_action_command(request.action)
@@ -129,16 +115,17 @@ class SchedulerService:
         self.scheduled_job_repository.clear_current_job()
 
     def _resolve_action_command(self, action: PowerAction) -> list[str]:
-        if self.session_service.supports(action):
-            return self.session_service.build_action_command(action)
-
-        if self.shutdown_service.supports(action):
-            return self.shutdown_service.build_action_command(action)
+        for service in self._action_services:
+            if service.supports(action):
+                return service.build_action_command(action)
 
         raise ValueError(f"Unsupported action: {action}")
 
     def _is_user_action(self, action: PowerAction) -> bool:
-        return self.session_service.supports(action)
+        for service in self._action_services:
+            if service.supports(action):
+                return service.is_user_level
+        return False
 
     def _generate_unit_name(self, action: PowerAction) -> str:
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S%f")
