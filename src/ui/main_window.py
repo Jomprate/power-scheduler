@@ -8,7 +8,7 @@ gi.require_version("Adw", "1")  # type: ignore[attr-defined]
 from gi.repository import Adw, GLib, Gtk
 
 from app.config import APP_NAME
-from domain.models import ScheduleRequest
+from domain.models import ScheduledJobResult, ScheduleRequest
 from services.capability_service import CapabilityService
 from services.schedule_controller import ScheduleController
 from ui.schedule_form import ScheduleForm
@@ -224,7 +224,7 @@ class MainWindow(Adw.ApplicationWindow):
     def _notify_schedule_created(
         self,
         request: ScheduleRequest,
-        result: object,
+        result: ScheduledJobResult,
     ) -> None:
         app = self.get_application()
         callback = getattr(app, "show_schedule_notification", None)

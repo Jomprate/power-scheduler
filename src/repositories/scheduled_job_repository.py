@@ -159,7 +159,7 @@ class ScheduledJobRepository:
                 return None
 
             return ScheduledJobRecord.from_json_dict(payload)
-        except Exception:
+        except (OSError, json.JSONDecodeError, ValueError, TypeError):
             return None
 
     def clear_current_job(self) -> None:

@@ -66,7 +66,7 @@ class PaletteService:
             monitor = gio_file.monitor_file(Gio.FileMonitorFlags.NONE, None)
             monitor.connect("changed", self._on_file_changed)
             self._file_monitors.append(monitor)
-        except Exception:
+        except (GLib.Error, OSError, TypeError, ValueError):
             pass
 
     def _on_dark_changed(self, *_args) -> None:
@@ -125,7 +125,7 @@ class PaletteService:
             try:
                 window.queue_draw()
                 window.queue_resize()
-            except Exception:
+            except (AttributeError, TypeError):
                 pass
 
     def _build_palette_css(self) -> str:
@@ -176,7 +176,7 @@ class PaletteService:
         except UnicodeDecodeError:
             try:
                 return path.read_text(encoding="utf-8", errors="ignore")
-            except Exception:
+            except (OSError, TypeError, ValueError):
                 return ""
-        except Exception:
+        except (OSError, TypeError, ValueError):
             return ""

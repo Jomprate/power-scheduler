@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import shutil
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -112,58 +113,28 @@ class CapabilityService:
         )
 
     def get_suspend_capability(self) -> ActionCapability:
-        systemctl = self._probe.find_binary("systemctl")
-        if not systemctl:
-            return self._make_capability(
-                "suspend",
-                None,
-                found_template="",
-                not_found_reason="systemctl was not found in PATH.",
-            )
-
-        if self._kernel_supports_suspend():
-            return ActionCapability(
-                action_key="suspend",
-                available=True,
-                reason=(
-                    f"Resolved systemctl at {systemctl} and kernel sleep states "
-                    "indicate suspend support."
-                ),
-            )
-
-        return ActionCapability(
-            action_key="suspend",
-            available=False,
-            reason=(
-                "systemctl is available, but kernel sleep states do not indicate "
-                "suspend support."
+        return self._make_systemctl_kernel_capability(
+            "suspend",
+            self._kernel_supports_suspend,
+            available_reason=(
+                "Resolved systemctl at {path} and kernel sleep states "
+                "indicate suspend support."
+            ),
+            unavailable_reason=(
+                "systemctl is available, but kernel sleep states do not "
+                "indicate suspend support."
             ),
         )
 
     def get_hibernate_capability(self) -> ActionCapability:
-        systemctl = self._probe.find_binary("systemctl")
-        if not systemctl:
-            return self._make_capability(
-                "hibernate",
-                None,
-                found_template="",
-                not_found_reason="systemctl was not found in PATH.",
-            )
-
-        if self._kernel_supports_hibernate():
-            return ActionCapability(
-                action_key="hibernate",
-                available=True,
-                reason=(
-                    f"Resolved systemctl at {systemctl} and kernel power interfaces "
-                    "indicate hibernate support."
-                ),
-            )
-
-        return ActionCapability(
-            action_key="hibernate",
-            available=False,
-            reason=(
+        return self._make_systemctl_kernel_capability(
+            "hibernate",
+            self._kernel_supports_hibernate,
+            available_reason=(
+                "Resolved systemctl at {path} and kernel power interfaces "
+                "indicate hibernate support."
+            ),
+            unavailable_reason=(
                 "systemctl is available, but kernel power interfaces do not "
                 "indicate hibernate support."
             ),
@@ -175,6 +146,36 @@ class CapabilityService:
             self._probe.find_binary("systemctl"),
             found_template="Resolved systemctl at {path}.",
             not_found_reason="systemctl was not found in PATH.",
+        )
+
+    def _make_systemctl_kernel_capability(
+        self,
+        action_key: str,
+        kernel_check: Callable[[], bool],
+        *,
+        available_reason: str,
+        unavailable_reason: str,
+    ) -> ActionCapability:
+        systemctl = self._probe.find_binary("systemctl")
+        if not systemctl:
+            return self._make_capability(
+                action_key,
+                None,
+                found_template="",
+                not_found_reason="systemctl was not found in PATH.",
+            )
+
+        if kernel_check():
+            return ActionCapability(
+                action_key=action_key,
+                available=True,
+                reason=available_reason.format(path=systemctl),
+            )
+
+        return ActionCapability(
+            action_key=action_key,
+            available=False,
+            reason=unavailable_reason,
         )
 
     def _kernel_supports_suspend(self) -> bool:

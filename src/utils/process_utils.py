@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import shlex
 import shutil
 import subprocess
@@ -12,6 +14,7 @@ def run_command(
         command,
         capture_output=True,
         text=True,
+        timeout=30,
     )
 
     if check and result.returncode != 0:

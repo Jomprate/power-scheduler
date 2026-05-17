@@ -37,11 +37,11 @@ class ScheduleController:
                 self._active_job.unit_name,
                 self._active_job.is_user_unit,
             )
-            self._sync()
             return result
-        except (RuntimeError, ValueError) as exc:
-            self._sync()
+        except Exception as exc:
             return ScheduledJobResult(success=False, message=str(exc))
+        finally:
+            self._sync()
 
     def restore_if_any(self) -> JobState | None:
         self._sync()

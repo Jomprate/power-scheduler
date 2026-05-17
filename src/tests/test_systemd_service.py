@@ -20,7 +20,7 @@ class SystemdServiceTests(unittest.TestCase):
         return "/usr/bin/systemctl" if name == "systemctl" else None
 
     @staticmethod
-    def _expected_cancel_calls(unit_name: str, is_user_unit: bool):
+    def _expected_cancel_calls(unit_name: str, is_user_unit: bool) -> list[call]:
         base = ["/usr/bin/systemctl"]
         if is_user_unit:
             base.append("--user")

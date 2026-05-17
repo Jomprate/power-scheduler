@@ -36,8 +36,8 @@ class SchedulerService:
         scheduled_job_repository: ScheduledJobRepository,
     ) -> None:
         self._action_services = list(action_services)
-        self.systemd_service = systemd_service
-        self.scheduled_job_repository = scheduled_job_repository
+        self._systemd_service = systemd_service
+        self._scheduled_job_repository = scheduled_job_repository
 
     def schedule(self, request: ScheduleRequest) -> ScheduledJobResult:
         unit_name = self._generate_unit_name(request.action)
@@ -45,7 +45,7 @@ class SchedulerService:
         action_command = self._resolve_action_command(request.action)
         delay_seconds = to_seconds(request.amount, request.unit)
 
-        result = self.systemd_service.schedule(
+        result = self._systemd_service.schedule(
             unit_name=unit_name,
             command=action_command,
             delay_seconds=delay_seconds,
@@ -76,7 +76,7 @@ class SchedulerService:
             command=shlex.join(result.command),
         )
 
-        self.scheduled_job_repository.save_current_job(
+        self._scheduled_job_repository.save_current_job(
             ScheduledJobRecord(
                 unit_name=unit_name,
                 is_user_unit=is_user_unit,
@@ -90,15 +90,15 @@ class SchedulerService:
         return ui_result
 
     def cancel(self, unit_name: str, is_user_unit: bool) -> ScheduledJobResult:
-        result = self.systemd_service.cancel(
+        result = self._systemd_service.cancel(
             unit_name=unit_name,
             is_user_unit=is_user_unit,
         )
 
         if result.success:
-            stored_job = self.scheduled_job_repository.get_current_job()
+            stored_job = self._scheduled_job_repository.get_current_job()
             if stored_job is None or stored_job.unit_name == unit_name:
-                self.scheduled_job_repository.clear_current_job()
+                self._scheduled_job_repository.clear_current_job()
 
         return ScheduledJobResult(
             success=result.success,
@@ -109,10 +109,10 @@ class SchedulerService:
         )
 
     def get_current_scheduled_job(self) -> ScheduledJobRecord | None:
-        return self.scheduled_job_repository.get_current_job()
+        return self._scheduled_job_repository.get_current_job()
 
     def clear_current_scheduled_job(self) -> None:
-        self.scheduled_job_repository.clear_current_job()
+        self._scheduled_job_repository.clear_current_job()
 
     def _resolve_action_command(self, action: PowerAction) -> list[str]:
         for service in self._action_services:
