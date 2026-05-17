@@ -30,9 +30,7 @@ class NotificationService:
         request: ScheduleRequest,
         result: ScheduledJobResult,
     ) -> None:
-        notification = Gio.Notification.new(
-            self._build_scheduled_title(request)
-        )
+        notification = Gio.Notification.new(self._build_scheduled_title(request))
         notification.set_body(self._build_scheduled_body(request))
         notification.set_priority(Gio.NotificationPriority.NORMAL)
         notification.set_default_action("app.cancel-scheduled")

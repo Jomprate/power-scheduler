@@ -1,17 +1,13 @@
 from __future__ import annotations
 
 import atexit
+import contextlib
 import os
 import shutil
 import sys
 from pathlib import Path
 
-APP_RUNTIME_CONFIG_DIR = (
-    Path.home()
-    / ".cache"
-    / "power-scheduler"
-    / "runtime-config"
-)
+APP_RUNTIME_CONFIG_DIR = Path.home() / ".cache" / "power-scheduler" / "runtime-config"
 
 
 def _prepare_isolated_gtk_config() -> None:
@@ -36,10 +32,8 @@ def _cleanup_runtime_config() -> None:
     Keep the runtime config disposable for direct main.py launches.
     If in the future you want persistent per-app config, remove this cleanup.
     """
-    try:
+    with contextlib.suppress(Exception):
         shutil.rmtree(APP_RUNTIME_CONFIG_DIR, ignore_errors=True)
-    except Exception:
-        pass
 
 
 _prepare_isolated_gtk_config()

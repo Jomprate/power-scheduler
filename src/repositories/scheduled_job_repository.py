@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 from domain.enums import PowerAction, TimeUnit
 
@@ -32,7 +33,7 @@ class ScheduledJobRecord:
         }
 
     @classmethod
-    def from_json_dict(cls, data: Mapping[str, Any]) -> "ScheduledJobRecord":
+    def from_json_dict(cls, data: Mapping[str, Any]) -> ScheduledJobRecord:
         unit_name = cls._require_non_empty_string(data, "unit_name")
         amount = cls._require_positive_int(data, "amount")
         action = PowerAction(cls._require_non_empty_string(data, "action"))
@@ -133,9 +134,7 @@ class ScheduledJobRepository:
 
         self._storage_file.parent.mkdir(parents=True, exist_ok=True)
 
-        temp_file = self._storage_file.with_suffix(
-            self._storage_file.suffix + ".tmp"
-        )
+        temp_file = self._storage_file.with_suffix(self._storage_file.suffix + ".tmp")
         temp_file.write_text(
             json.dumps(payload, indent=2, ensure_ascii=False),
             encoding="utf-8",
@@ -174,9 +173,6 @@ class ScheduledJobRepository:
     def _build_default_storage_file() -> Path:
         state_home = os.environ.get("XDG_STATE_HOME", "").strip()
 
-        if state_home:
-            base_dir = Path(state_home)
-        else:
-            base_dir = Path.home() / ".local" / "state"
+        base_dir = Path(state_home) if state_home else Path.home() / ".local" / "state"
 
         return base_dir / "power-scheduler" / ScheduledJobRepository.FILE_NAME

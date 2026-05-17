@@ -16,6 +16,10 @@ line-length = 88
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "SIM"]
+ignore = ["E402"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/tests/*" = ["E501"]
 
 [tool.ruff.format]
 quote-style = "double"

@@ -5,7 +5,7 @@ gi.require_version("Adw", "1")  # type: ignore
 
 from pathlib import Path
 
-from gi.repository import Adw, Gdk, Gio, Gtk, GLib
+from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 
 from app.config import APP_ID
 from domain.models import ScheduleRequest
@@ -95,9 +95,7 @@ class PowerSchedulerApplication(Adw.Application):
             )
 
             if result.success:
-                self.notification_service.send_cancellation_notification(
-                    result.message
-                )
+                self.notification_service.send_cancellation_notification(result.message)
             else:
                 self.notification_service.send_error_notification(result.message)
 

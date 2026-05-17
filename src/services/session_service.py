@@ -36,9 +36,7 @@ class SessionService:
         if action == PowerAction.LOG_OUT:
             return self._build_logout_command()
 
-        raise ValueError(
-            f"Unsupported session action for SessionService: {action}"
-        )
+        raise ValueError(f"Unsupported session action for SessionService: {action}")
 
     def _build_lock_command(self) -> list[str]:
         session_id = self._get_session_id()

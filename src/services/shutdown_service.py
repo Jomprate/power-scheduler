@@ -41,9 +41,7 @@ class ShutdownService:
         if action == PowerAction.POWER_OFF:
             return self._build_poweroff_command(systemctl_path)
 
-        raise ValueError(
-            f"Unsupported shutdown action for ShutdownService: {action}"
-        )
+        raise ValueError(f"Unsupported shutdown action for ShutdownService: {action}")
 
     @staticmethod
     def _build_suspend_command(systemctl_path: str) -> list[str]:

@@ -42,7 +42,9 @@ class CapabilityServiceTests(unittest.TestCase):
 
         self.assertFalse(CapabilityService.has_required_commands())
 
-    @patch("services.capability_service.shutil.which", return_value="/usr/bin/systemd-run")
+    @patch(
+        "services.capability_service.shutil.which", return_value="/usr/bin/systemd-run"
+    )
     def test_get_schedule_capability_returns_available_when_systemd_run_exists(
         self,
         _mock_which,
@@ -335,7 +337,10 @@ class CapabilityServiceTests(unittest.TestCase):
 
         self.assertEqual(result, "")
 
-    @patch("services.capability_service.Path.read_text", return_value="  freeze mem disk  \n")
+    @patch(
+        "services.capability_service.Path.read_text",
+        return_value="  freeze mem disk  \n",
+    )
     @patch("services.capability_service.Path.exists", return_value=True)
     def test_read_text_if_exists_returns_trimmed_content(
         self,

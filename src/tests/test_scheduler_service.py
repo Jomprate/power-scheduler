@@ -40,10 +40,13 @@ class SchedulerServiceTests(unittest.TestCase):
             unit=TimeUnit.SECONDS,
         )
 
-        self.session_service.supports.side_effect = lambda action: action in {
-            PowerAction.LOCK,
-            PowerAction.LOG_OUT,
-        }
+        self.session_service.supports.side_effect = lambda action: (
+            action
+            in {
+                PowerAction.LOCK,
+                PowerAction.LOG_OUT,
+            }
+        )
         self.shutdown_service.supports.return_value = False
 
         self.session_service.build_action_command.return_value = [
@@ -117,11 +120,14 @@ class SchedulerServiceTests(unittest.TestCase):
         )
 
         self.session_service.supports.return_value = False
-        self.shutdown_service.supports.side_effect = lambda action: action in {
-            PowerAction.SUSPEND,
-            PowerAction.HIBERNATE,
-            PowerAction.POWER_OFF,
-        }
+        self.shutdown_service.supports.side_effect = lambda action: (
+            action
+            in {
+                PowerAction.SUSPEND,
+                PowerAction.HIBERNATE,
+                PowerAction.POWER_OFF,
+            }
+        )
         self.shutdown_service.build_action_command.return_value = [
             "/usr/bin/systemctl",
             "suspend",
@@ -185,10 +191,13 @@ class SchedulerServiceTests(unittest.TestCase):
             unit=TimeUnit.SECONDS,
         )
 
-        self.session_service.supports.side_effect = lambda action: action in {
-            PowerAction.LOCK,
-            PowerAction.LOG_OUT,
-        }
+        self.session_service.supports.side_effect = lambda action: (
+            action
+            in {
+                PowerAction.LOCK,
+                PowerAction.LOG_OUT,
+            }
+        )
         self.shutdown_service.supports.return_value = False
         self.session_service.build_action_command.return_value = [
             "/usr/bin/loginctl",

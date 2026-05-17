@@ -13,7 +13,7 @@ from app.config import APP_NAME
 from domain.enums import PowerAction, TimeUnit
 from domain.models import ScheduleRequest
 from services.capability_service import ActionCapability, CapabilityService
-from services.scheduler_service import SchedulerService, ScheduledJobResult
+from services.scheduler_service import ScheduledJobResult, SchedulerService
 
 
 def _build_action_list_from_caps(
@@ -588,9 +588,7 @@ class MainWindow(Adw.ApplicationWindow):
             callback(message)
 
     def _build_action_list(self) -> list[tuple[str, PowerAction]]:
-        return _build_action_list_from_caps(
-            self.capability_service.get_capabilities()
-        )
+        return _build_action_list_from_caps(self.capability_service.get_capabilities())
 
     def _get_selected_action(self) -> PowerAction:
         index = self.action_dropdown.get_selected()

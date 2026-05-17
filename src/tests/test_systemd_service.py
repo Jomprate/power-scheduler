@@ -278,7 +278,9 @@ class SystemdServiceTests(unittest.TestCase):
         self.assertTrue(result.success)
         self.assertEqual(result.unit_name, "power-scheduler-lock-test")
         self.assertTrue(result.is_user_unit)
-        self.assertEqual(result.message, "Scheduled transient unit: power-scheduler-lock-test")
+        self.assertEqual(
+            result.message, "Scheduled transient unit: power-scheduler-lock-test"
+        )
         self.assertEqual(result.stdout, "timer created successfully")
         self.assertEqual(result.stderr, "warning text")
         self.assertEqual(
@@ -379,19 +381,39 @@ class SystemdServiceTests(unittest.TestCase):
             mock_run_command.call_args_list,
             [
                 call(
-                    ["/usr/bin/systemctl", "--user", "stop", "power-scheduler-lock-test.timer"],
+                    [
+                        "/usr/bin/systemctl",
+                        "--user",
+                        "stop",
+                        "power-scheduler-lock-test.timer",
+                    ],
                     check=False,
                 ),
                 call(
-                    ["/usr/bin/systemctl", "--user", "stop", "power-scheduler-lock-test.service"],
+                    [
+                        "/usr/bin/systemctl",
+                        "--user",
+                        "stop",
+                        "power-scheduler-lock-test.service",
+                    ],
                     check=False,
                 ),
                 call(
-                    ["/usr/bin/systemctl", "--user", "reset-failed", "power-scheduler-lock-test.timer"],
+                    [
+                        "/usr/bin/systemctl",
+                        "--user",
+                        "reset-failed",
+                        "power-scheduler-lock-test.timer",
+                    ],
                     check=False,
                 ),
                 call(
-                    ["/usr/bin/systemctl", "--user", "reset-failed", "power-scheduler-lock-test.service"],
+                    [
+                        "/usr/bin/systemctl",
+                        "--user",
+                        "reset-failed",
+                        "power-scheduler-lock-test.service",
+                    ],
                     check=False,
                 ),
             ],
@@ -414,19 +436,35 @@ class SystemdServiceTests(unittest.TestCase):
             mock_run_command.call_args_list,
             [
                 call(
-                    ["/usr/bin/systemctl", "stop", "power-scheduler-suspend-test.timer"],
+                    [
+                        "/usr/bin/systemctl",
+                        "stop",
+                        "power-scheduler-suspend-test.timer",
+                    ],
                     check=False,
                 ),
                 call(
-                    ["/usr/bin/systemctl", "stop", "power-scheduler-suspend-test.service"],
+                    [
+                        "/usr/bin/systemctl",
+                        "stop",
+                        "power-scheduler-suspend-test.service",
+                    ],
                     check=False,
                 ),
                 call(
-                    ["/usr/bin/systemctl", "reset-failed", "power-scheduler-suspend-test.timer"],
+                    [
+                        "/usr/bin/systemctl",
+                        "reset-failed",
+                        "power-scheduler-suspend-test.timer",
+                    ],
                     check=False,
                 ),
                 call(
-                    ["/usr/bin/systemctl", "reset-failed", "power-scheduler-suspend-test.service"],
+                    [
+                        "/usr/bin/systemctl",
+                        "reset-failed",
+                        "power-scheduler-suspend-test.service",
+                    ],
                     check=False,
                 ),
             ],

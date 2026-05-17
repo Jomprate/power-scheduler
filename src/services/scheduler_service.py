@@ -145,4 +145,3 @@ class SchedulerService:
     def _generate_unit_name(self, action: PowerAction) -> str:
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S%f")
         return f"power-scheduler-{action.value}-{timestamp}"
-
