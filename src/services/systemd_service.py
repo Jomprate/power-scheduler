@@ -39,6 +39,11 @@ class SystemdService:
 
     TIMER_ACCURACY = "1us"
 
+    _ERR_UNIT_NAME_EMPTY = "unit_name cannot be empty."
+    _ERR_COMMAND_EMPTY = "command cannot be empty."
+    _ERR_COMMAND_BLANK_PART = "command cannot contain empty parts."
+    _ERR_DELAY_NOT_POSITIVE = "delay_seconds must be greater than zero."
+
     def schedule(
         self,
         *,
@@ -144,17 +149,17 @@ class SystemdService:
     @staticmethod
     def _validate_unit_name(unit_name: str) -> None:
         if not unit_name or not unit_name.strip():
-            raise ValueError("unit_name cannot be empty.")
+            raise ValueError(SystemdService._ERR_UNIT_NAME_EMPTY)
 
     @staticmethod
     def _validate_command(command: list[str]) -> None:
         if not command:
-            raise ValueError("command cannot be empty.")
+            raise ValueError(SystemdService._ERR_COMMAND_EMPTY)
 
         if any(not str(part).strip() for part in command):
-            raise ValueError("command cannot contain empty parts.")
+            raise ValueError(SystemdService._ERR_COMMAND_BLANK_PART)
 
     @staticmethod
     def _validate_delay_seconds(delay_seconds: int) -> None:
         if delay_seconds <= 0:
-            raise ValueError("delay_seconds must be greater than zero.")
+            raise ValueError(SystemdService._ERR_DELAY_NOT_POSITIVE)

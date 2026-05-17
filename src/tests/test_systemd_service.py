@@ -11,17 +11,32 @@ class SystemdServiceTests(unittest.TestCase):
     def setUp(self) -> None:
         self.service = SystemdService()
 
+    @staticmethod
+    def _systemd_run_path(name: str) -> str | None:
+        return "/usr/bin/systemd-run" if name == "systemd-run" else None
+
+    @staticmethod
+    def _systemctl_path(name: str) -> str | None:
+        return "/usr/bin/systemctl" if name == "systemctl" else None
+
+    @staticmethod
+    def _expected_cancel_calls(unit_name: str, is_user_unit: bool):
+        base = ["/usr/bin/systemctl"]
+        if is_user_unit:
+            base.append("--user")
+        return [
+            call([*base, "stop", f"{unit_name}.timer"], check=False),
+            call([*base, "stop", f"{unit_name}.service"], check=False),
+            call([*base, "reset-failed", f"{unit_name}.timer"], check=False),
+            call([*base, "reset-failed", f"{unit_name}.service"], check=False),
+        ]
+
     @patch("utils.process_utils.shutil.which")
     def test_build_schedule_command_for_user_unit(
         self,
         mock_which,
     ) -> None:
-        def which_side_effect(binary_name: str) -> str | None:
-            if binary_name == "systemd-run":
-                return "/usr/bin/systemd-run"
-            return None
-
-        mock_which.side_effect = which_side_effect
+        mock_which.side_effect = self._systemd_run_path
 
         command = self.service.build_schedule_command(
             unit_name="power-scheduler-lock-test",
@@ -58,12 +73,7 @@ class SystemdServiceTests(unittest.TestCase):
         self,
         mock_which,
     ) -> None:
-        def which_side_effect(binary_name: str) -> str | None:
-            if binary_name == "systemd-run":
-                return "/usr/bin/systemd-run"
-            return None
-
-        mock_which.side_effect = which_side_effect
+        mock_which.side_effect = self._systemd_run_path
 
         command = self.service.build_schedule_command(
             unit_name="power-scheduler-suspend-test",
@@ -131,12 +141,7 @@ class SystemdServiceTests(unittest.TestCase):
         self,
         mock_which,
     ) -> None:
-        def which_side_effect(binary_name: str) -> str | None:
-            if binary_name == "systemctl":
-                return "/usr/bin/systemctl"
-            return None
-
-        mock_which.side_effect = which_side_effect
+        mock_which.side_effect = self._systemctl_path
 
         base_command = self.service._build_systemctl_base(True)
 
@@ -379,44 +384,7 @@ class SystemdServiceTests(unittest.TestCase):
 
         self.assertEqual(
             mock_run_command.call_args_list,
-            [
-                call(
-                    [
-                        "/usr/bin/systemctl",
-                        "--user",
-                        "stop",
-                        "power-scheduler-lock-test.timer",
-                    ],
-                    check=False,
-                ),
-                call(
-                    [
-                        "/usr/bin/systemctl",
-                        "--user",
-                        "stop",
-                        "power-scheduler-lock-test.service",
-                    ],
-                    check=False,
-                ),
-                call(
-                    [
-                        "/usr/bin/systemctl",
-                        "--user",
-                        "reset-failed",
-                        "power-scheduler-lock-test.timer",
-                    ],
-                    check=False,
-                ),
-                call(
-                    [
-                        "/usr/bin/systemctl",
-                        "--user",
-                        "reset-failed",
-                        "power-scheduler-lock-test.service",
-                    ],
-                    check=False,
-                ),
-            ],
+            self._expected_cancel_calls("power-scheduler-lock-test", is_user_unit=True),
         )
 
     @patch("services.systemd_service.run_command")
@@ -434,40 +402,9 @@ class SystemdServiceTests(unittest.TestCase):
         self.assertTrue(result.success)
         self.assertEqual(
             mock_run_command.call_args_list,
-            [
-                call(
-                    [
-                        "/usr/bin/systemctl",
-                        "stop",
-                        "power-scheduler-suspend-test.timer",
-                    ],
-                    check=False,
-                ),
-                call(
-                    [
-                        "/usr/bin/systemctl",
-                        "stop",
-                        "power-scheduler-suspend-test.service",
-                    ],
-                    check=False,
-                ),
-                call(
-                    [
-                        "/usr/bin/systemctl",
-                        "reset-failed",
-                        "power-scheduler-suspend-test.timer",
-                    ],
-                    check=False,
-                ),
-                call(
-                    [
-                        "/usr/bin/systemctl",
-                        "reset-failed",
-                        "power-scheduler-suspend-test.service",
-                    ],
-                    check=False,
-                ),
-            ],
+            self._expected_cancel_calls(
+                "power-scheduler-suspend-test", is_user_unit=False
+            ),
         )
 
     def test_cancel_raises_when_unit_name_is_blank(self) -> None:

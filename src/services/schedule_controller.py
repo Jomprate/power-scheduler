@@ -39,7 +39,7 @@ class ScheduleController:
             )
             self._sync()
             return result
-        except Exception as exc:
+        except (RuntimeError, ValueError) as exc:
             self._sync()
             return ScheduledJobResult(success=False, message=str(exc))
 

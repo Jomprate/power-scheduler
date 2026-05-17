@@ -49,36 +49,40 @@ class CapabilityService:
             "schedule": self.get_schedule_capability(),
         }
 
-    def get_schedule_capability(self) -> ActionCapability:
-        systemd_run = self._probe.find_binary("systemd-run")
-
-        if systemd_run:
+    def _make_capability(
+        self,
+        action_key: str,
+        binary_path: str | None,
+        *,
+        found_template: str,
+        not_found_reason: str,
+    ) -> ActionCapability:
+        if binary_path:
             return ActionCapability(
-                action_key="schedule",
+                action_key=action_key,
                 available=True,
-                reason=f"Resolved systemd-run at {systemd_run}.",
+                reason=found_template.format(path=binary_path),
             )
-
         return ActionCapability(
-            action_key="schedule",
+            action_key=action_key,
             available=False,
-            reason="systemd-run was not found in PATH.",
+            reason=not_found_reason,
+        )
+
+    def get_schedule_capability(self) -> ActionCapability:
+        return self._make_capability(
+            "schedule",
+            self._probe.find_binary("systemd-run"),
+            found_template="Resolved systemd-run at {path}.",
+            not_found_reason="systemd-run was not found in PATH.",
         )
 
     def get_lock_capability(self) -> ActionCapability:
-        loginctl = self._probe.find_binary("loginctl")
-
-        if loginctl:
-            return ActionCapability(
-                action_key="lock",
-                available=True,
-                reason=f"Resolved loginctl at {loginctl}.",
-            )
-
-        return ActionCapability(
-            action_key="lock",
-            available=False,
-            reason="loginctl was not found in PATH.",
+        return self._make_capability(
+            "lock",
+            self._probe.find_binary("loginctl"),
+            found_template="Resolved loginctl at {path}.",
+            not_found_reason="loginctl was not found in PATH.",
         )
 
     def get_logout_capability(self) -> ActionCapability:
@@ -110,10 +114,11 @@ class CapabilityService:
     def get_suspend_capability(self) -> ActionCapability:
         systemctl = self._probe.find_binary("systemctl")
         if not systemctl:
-            return ActionCapability(
-                action_key="suspend",
-                available=False,
-                reason="systemctl was not found in PATH.",
+            return self._make_capability(
+                "suspend",
+                None,
+                found_template="",
+                not_found_reason="systemctl was not found in PATH.",
             )
 
         if self._kernel_supports_suspend():
@@ -138,10 +143,11 @@ class CapabilityService:
     def get_hibernate_capability(self) -> ActionCapability:
         systemctl = self._probe.find_binary("systemctl")
         if not systemctl:
-            return ActionCapability(
-                action_key="hibernate",
-                available=False,
-                reason="systemctl was not found in PATH.",
+            return self._make_capability(
+                "hibernate",
+                None,
+                found_template="",
+                not_found_reason="systemctl was not found in PATH.",
             )
 
         if self._kernel_supports_hibernate():
@@ -164,19 +170,11 @@ class CapabilityService:
         )
 
     def get_power_off_capability(self) -> ActionCapability:
-        systemctl = self._probe.find_binary("systemctl")
-
-        if systemctl:
-            return ActionCapability(
-                action_key="power_off",
-                available=True,
-                reason=f"Resolved systemctl at {systemctl}.",
-            )
-
-        return ActionCapability(
-            action_key="power_off",
-            available=False,
-            reason="systemctl was not found in PATH.",
+        return self._make_capability(
+            "power_off",
+            self._probe.find_binary("systemctl"),
+            found_template="Resolved systemctl at {path}.",
+            not_found_reason="systemctl was not found in PATH.",
         )
 
     def _kernel_supports_suspend(self) -> bool:

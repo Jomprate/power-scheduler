@@ -113,6 +113,9 @@ class ScheduledJobRepository:
 
     FILE_NAME = "current_job.json"
 
+    _ERR_UNIT_NAME_EMPTY = "unit_name cannot be empty."
+    _ERR_AMOUNT_POSITIVE = "amount must be greater than zero."
+
     def __init__(self, storage_file: Path | None = None) -> None:
         self._storage_file = storage_file or self._build_default_storage_file()
 
@@ -122,10 +125,10 @@ class ScheduledJobRepository:
 
     def save_current_job(self, record: ScheduledJobRecord) -> None:
         if not record.unit_name.strip():
-            raise ValueError("unit_name cannot be empty.")
+            raise ValueError(self._ERR_UNIT_NAME_EMPTY)
 
         if record.amount <= 0:
-            raise ValueError("amount must be greater than zero.")
+            raise ValueError(self._ERR_AMOUNT_POSITIVE)
 
         payload = record.to_json_dict()
 
