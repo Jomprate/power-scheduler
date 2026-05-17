@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shlex
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -70,8 +71,8 @@ class SchedulerService:
         )
 
         scheduled_for = format_human_time(request.amount, request.unit)
-        stdout = (result.stdout or "").strip()
-        stderr = (result.stderr or "").strip()
+        stdout = result.stdout.strip()
+        stderr = result.stderr.strip()
 
         message_parts = [
             f"Scheduled {request.action.value} in {scheduled_for}.",
@@ -89,7 +90,7 @@ class SchedulerService:
             message="\n".join(message_parts),
             unit_name=unit_name,
             is_user_unit=is_user_unit,
-            command=" ".join(result.command),
+            command=shlex.join(result.command),
         )
 
         self.scheduled_job_repository.save_current_job(

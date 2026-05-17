@@ -167,7 +167,7 @@ class ScheduledJobRepository:
             pass
 
     def has_current_job(self) -> bool:
-        return self.get_current_job() is not None
+        return self._storage_file.exists() and self._storage_file.stat().st_size > 0
 
     @staticmethod
     def _build_default_storage_file() -> Path:

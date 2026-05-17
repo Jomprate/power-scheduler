@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 
 from domain.enums import TimeUnit
-from utils.time_utils import format_human_time, to_seconds, to_systemd_time
+from utils.time_utils import format_human_time, to_seconds
 
 
 class ToSecondsTests(unittest.TestCase):
@@ -29,38 +29,24 @@ class ToSecondsTests(unittest.TestCase):
             to_seconds(1, "days")  # type: ignore[arg-type]
 
 
-class ToSystemdTimeTests(unittest.TestCase):
-    def test_seconds(self) -> None:
-        self.assertEqual(to_systemd_time(30, TimeUnit.SECONDS), "30s")
-
-    def test_minutes(self) -> None:
-        self.assertEqual(to_systemd_time(5, TimeUnit.MINUTES), "5m")
-
-    def test_hours(self) -> None:
-        self.assertEqual(to_systemd_time(1, TimeUnit.HOURS), "1h")
-
-    def test_single_value_edge_cases(self) -> None:
-        self.assertEqual(to_systemd_time(1, TimeUnit.SECONDS), "1s")
-        self.assertEqual(to_systemd_time(1, TimeUnit.MINUTES), "1m")
-        self.assertEqual(to_systemd_time(1, TimeUnit.HOURS), "1h")
-
-    def test_unsupported_unit_raises(self) -> None:
-        with self.assertRaisesRegex(ValueError, "Unsupported time unit"):
-            to_systemd_time(1, "weeks")  # type: ignore[arg-type]
-
-
 class FormatHumanTimeTests(unittest.TestCase):
     def test_seconds_plural(self) -> None:
-        self.assertEqual(format_human_time(15, TimeUnit.SECONDS), "15 second(s)")
+        self.assertEqual(format_human_time(15, TimeUnit.SECONDS), "15 seconds")
 
     def test_seconds_singular(self) -> None:
-        self.assertEqual(format_human_time(1, TimeUnit.SECONDS), "1 second(s)")
+        self.assertEqual(format_human_time(1, TimeUnit.SECONDS), "1 second")
 
     def test_minutes_plural(self) -> None:
-        self.assertEqual(format_human_time(3, TimeUnit.MINUTES), "3 minute(s)")
+        self.assertEqual(format_human_time(3, TimeUnit.MINUTES), "3 minutes")
+
+    def test_minutes_singular(self) -> None:
+        self.assertEqual(format_human_time(1, TimeUnit.MINUTES), "1 minute")
 
     def test_hours_plural(self) -> None:
-        self.assertEqual(format_human_time(2, TimeUnit.HOURS), "2 hour(s)")
+        self.assertEqual(format_human_time(2, TimeUnit.HOURS), "2 hours")
+
+    def test_hours_singular(self) -> None:
+        self.assertEqual(format_human_time(1, TimeUnit.HOURS), "1 hour")
 
     def test_unsupported_unit_raises(self) -> None:
         with self.assertRaisesRegex(ValueError, "Unsupported time unit"):

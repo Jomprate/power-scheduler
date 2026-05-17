@@ -36,7 +36,7 @@ class SessionServiceTests(unittest.TestCase):
         )
 
     @patch.dict("os.environ", {"XDG_SESSION_ID": "42"}, clear=False)
-    @patch("services.session_service.shutil.which")
+    @patch("utils.process_utils.shutil.which")
     def test_lock_uses_loginctl_with_current_session_id(
         self,
         mock_which,
@@ -57,7 +57,7 @@ class SessionServiceTests(unittest.TestCase):
         )
 
     @patch.dict("os.environ", {}, clear=True)
-    @patch("services.session_service.shutil.which")
+    @patch("utils.process_utils.shutil.which")
     def test_lock_falls_back_to_loginctl_without_session_id(
         self,
         mock_which,
@@ -78,7 +78,7 @@ class SessionServiceTests(unittest.TestCase):
         )
 
     @patch.dict("os.environ", {"XDG_SESSION_ID": "42"}, clear=False)
-    @patch("services.session_service.shutil.which", return_value=None)
+    @patch("utils.process_utils.shutil.which", return_value=None)
     def test_lock_raises_when_loginctl_is_missing(
         self,
         _mock_which,
@@ -90,7 +90,7 @@ class SessionServiceTests(unittest.TestCase):
             self.service.build_action_command(PowerAction.LOCK)
 
     @patch.dict("os.environ", {"XDG_SESSION_ID": "42"}, clear=False)
-    @patch("services.session_service.shutil.which")
+    @patch("utils.process_utils.shutil.which")
     def test_logout_prefers_gnome_session_quit_when_available(
         self,
         mock_which,
@@ -117,7 +117,7 @@ class SessionServiceTests(unittest.TestCase):
         )
 
     @patch.dict("os.environ", {"XDG_SESSION_ID": "42"}, clear=False)
-    @patch("services.session_service.shutil.which")
+    @patch("utils.process_utils.shutil.which")
     def test_logout_falls_back_to_loginctl_terminate_session(
         self,
         mock_which,
@@ -140,7 +140,7 @@ class SessionServiceTests(unittest.TestCase):
         )
 
     @patch.dict("os.environ", {}, clear=True)
-    @patch("services.session_service.shutil.which")
+    @patch("utils.process_utils.shutil.which")
     def test_logout_raises_when_no_supported_command_can_be_resolved(
         self,
         mock_which,

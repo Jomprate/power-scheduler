@@ -11,7 +11,7 @@ class SystemdServiceTests(unittest.TestCase):
     def setUp(self) -> None:
         self.service = SystemdService()
 
-    @patch("services.systemd_service.shutil.which")
+    @patch("utils.process_utils.shutil.which")
     def test_build_schedule_command_for_user_unit(
         self,
         mock_which,
@@ -53,7 +53,7 @@ class SystemdServiceTests(unittest.TestCase):
             "User schedule command should include --user, no-block and high timer accuracy.",
         )
 
-    @patch("services.systemd_service.shutil.which")
+    @patch("utils.process_utils.shutil.which")
     def test_build_schedule_command_for_system_unit(
         self,
         mock_which,
@@ -93,7 +93,7 @@ class SystemdServiceTests(unittest.TestCase):
             "System schedule command should omit --user and keep the timer accuracy property.",
         )
 
-    @patch("services.systemd_service.shutil.which")
+    @patch("utils.process_utils.shutil.which")
     def test_build_schedule_command_omits_blank_description(
         self,
         mock_which,
@@ -126,7 +126,7 @@ class SystemdServiceTests(unittest.TestCase):
             "Blank descriptions should not be included in the final systemd-run command.",
         )
 
-    @patch("services.systemd_service.shutil.which")
+    @patch("utils.process_utils.shutil.which")
     def test_build_systemctl_base_for_user_unit(
         self,
         mock_which,
@@ -146,7 +146,7 @@ class SystemdServiceTests(unittest.TestCase):
             "User systemctl base command should include --user.",
         )
 
-    @patch("services.systemd_service.shutil.which")
+    @patch("utils.process_utils.shutil.which")
     def test_build_systemctl_base_for_system_unit(
         self,
         mock_which,
@@ -161,7 +161,7 @@ class SystemdServiceTests(unittest.TestCase):
             "System systemctl base command should not include --user.",
         )
 
-    @patch("services.systemd_service.shutil.which")
+    @patch("utils.process_utils.shutil.which")
     def test_build_schedule_command_raises_when_systemd_run_is_missing(
         self,
         mock_which,
@@ -180,7 +180,7 @@ class SystemdServiceTests(unittest.TestCase):
                 description="Power Scheduler: test",
             )
 
-    @patch("services.systemd_service.shutil.which")
+    @patch("utils.process_utils.shutil.which")
     def test_build_systemctl_base_raises_when_systemctl_is_missing(
         self,
         mock_which,
@@ -193,7 +193,7 @@ class SystemdServiceTests(unittest.TestCase):
         ):
             self.service._build_systemctl_base(False)
 
-    @patch("services.systemd_service.shutil.which", return_value="/usr/bin/systemd-run")
+    @patch("utils.process_utils.shutil.which", return_value="/usr/bin/systemd-run")
     def test_build_schedule_command_raises_when_unit_name_is_empty(
         self,
         _mock_which,
@@ -207,7 +207,7 @@ class SystemdServiceTests(unittest.TestCase):
                 description="Power Scheduler: test",
             )
 
-    @patch("services.systemd_service.shutil.which", return_value="/usr/bin/systemd-run")
+    @patch("utils.process_utils.shutil.which", return_value="/usr/bin/systemd-run")
     def test_build_schedule_command_raises_when_command_is_empty(
         self,
         _mock_which,
@@ -221,7 +221,7 @@ class SystemdServiceTests(unittest.TestCase):
                 description="Power Scheduler: test",
             )
 
-    @patch("services.systemd_service.shutil.which", return_value="/usr/bin/systemd-run")
+    @patch("utils.process_utils.shutil.which", return_value="/usr/bin/systemd-run")
     def test_build_schedule_command_raises_when_command_contains_empty_part(
         self,
         _mock_which,
@@ -238,7 +238,7 @@ class SystemdServiceTests(unittest.TestCase):
                 description="Power Scheduler: test",
             )
 
-    @patch("services.systemd_service.shutil.which", return_value="/usr/bin/systemd-run")
+    @patch("utils.process_utils.shutil.which", return_value="/usr/bin/systemd-run")
     def test_build_schedule_command_raises_when_delay_is_not_positive(
         self,
         _mock_which,
@@ -256,7 +256,7 @@ class SystemdServiceTests(unittest.TestCase):
             )
 
     @patch("services.systemd_service.run_command")
-    @patch("services.systemd_service.shutil.which", return_value="/usr/bin/systemd-run")
+    @patch("utils.process_utils.shutil.which", return_value="/usr/bin/systemd-run")
     def test_schedule_returns_result_with_trimmed_stdout_and_stderr(
         self,
         _mock_which,
@@ -358,7 +358,7 @@ class SystemdServiceTests(unittest.TestCase):
             )
 
     @patch("services.systemd_service.run_command")
-    @patch("services.systemd_service.shutil.which", return_value="/usr/bin/systemctl")
+    @patch("utils.process_utils.shutil.which", return_value="/usr/bin/systemctl")
     def test_cancel_for_user_unit_executes_expected_sequence(
         self,
         _mock_which,
@@ -420,7 +420,7 @@ class SystemdServiceTests(unittest.TestCase):
         )
 
     @patch("services.systemd_service.run_command")
-    @patch("services.systemd_service.shutil.which", return_value="/usr/bin/systemctl")
+    @patch("utils.process_utils.shutil.which", return_value="/usr/bin/systemctl")
     def test_cancel_for_system_unit_executes_expected_sequence(
         self,
         _mock_which,

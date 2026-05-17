@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import shutil
 from dataclasses import dataclass
 
-from utils.process_utils import run_command
+from utils.process_utils import run_command, which_required
 
 
 @dataclass(slots=True)
@@ -111,7 +110,7 @@ class SystemdService:
         self._validate_command(command)
         self._validate_delay_seconds(delay_seconds)
 
-        systemd_run_path = self._which_required("systemd-run")
+        systemd_run_path = which_required("systemd-run")
 
         cmd: list[str] = [systemd_run_path]
 
@@ -138,7 +137,7 @@ class SystemdService:
         return cmd
 
     def _build_systemctl_base(self, is_user_unit: bool) -> list[str]:
-        systemctl_path = self._which_required("systemctl")
+        systemctl_path = which_required("systemctl")
         base = [systemctl_path]
 
         if is_user_unit:
@@ -163,10 +162,3 @@ class SystemdService:
     def _validate_delay_seconds(delay_seconds: int) -> None:
         if delay_seconds <= 0:
             raise ValueError("delay_seconds must be greater than zero.")
-
-    @staticmethod
-    def _which_required(binary_name: str) -> str:
-        resolved = shutil.which(binary_name)
-        if not resolved:
-            raise RuntimeError(f"Required binary not found: {binary_name}")
-        return resolved

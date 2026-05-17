@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import shutil
 from typing import Final
 
 from domain.enums import PowerAction
+from utils.process_utils import which_required
 
 
 class ShutdownService:
@@ -30,7 +30,7 @@ class ShutdownService:
         return action in self.SUPPORTED_ACTIONS
 
     def build_action_command(self, action: PowerAction) -> list[str]:
-        systemctl_path = self._which_required("systemctl")
+        systemctl_path = which_required("systemctl")
 
         if action == PowerAction.SUSPEND:
             return self._build_suspend_command(systemctl_path)
@@ -54,10 +54,3 @@ class ShutdownService:
     @staticmethod
     def _build_poweroff_command(systemctl_path: str) -> list[str]:
         return [systemctl_path, "start", "poweroff.target"]
-
-    @staticmethod
-    def _which_required(binary_name: str) -> str:
-        resolved = shutil.which(binary_name)
-        if not resolved:
-            raise RuntimeError(f"Required binary not found: {binary_name}")
-        return resolved

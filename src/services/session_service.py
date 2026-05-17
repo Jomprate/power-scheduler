@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import os
-import shutil
 from typing import Final
 
 from domain.enums import PowerAction
+from utils.process_utils import which_optional, which_required
 
 
 class SessionService:
@@ -40,7 +40,7 @@ class SessionService:
 
     def _build_lock_command(self) -> list[str]:
         session_id = self._get_session_id()
-        loginctl_path = self._which_optional("loginctl")
+        loginctl_path = which_optional("loginctl")
 
         if loginctl_path and session_id:
             return [loginctl_path, "lock-session", session_id]
@@ -53,7 +53,7 @@ class SessionService:
         )
 
     def _build_logout_command(self) -> list[str]:
-        gnome_session_quit_path = self._which_optional("gnome-session-quit")
+        gnome_session_quit_path = which_optional("gnome-session-quit")
         if gnome_session_quit_path:
             return [
                 gnome_session_quit_path,
@@ -67,22 +67,10 @@ class SessionService:
                 "Unable to determine the current session id for log out action."
             )
 
-        loginctl_path = self._which_required("loginctl")
+        loginctl_path = which_required("loginctl")
         return [loginctl_path, "terminate-session", session_id]
 
     @staticmethod
     def _get_session_id() -> str | None:
         session_id = os.environ.get("XDG_SESSION_ID", "").strip()
         return session_id or None
-
-    @staticmethod
-    def _which_required(binary_name: str) -> str:
-        resolved = shutil.which(binary_name)
-        if not resolved:
-            raise RuntimeError(f"Required binary not found: {binary_name}")
-        return resolved
-
-    @staticmethod
-    def _which_optional(binary_name: str) -> str | None:
-        resolved = shutil.which(binary_name)
-        return resolved or None

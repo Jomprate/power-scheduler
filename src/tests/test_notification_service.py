@@ -40,7 +40,7 @@ class NotificationServiceBuilderTests(unittest.TestCase):
         body = self.service._build_scheduled_body(request)
         self.assertEqual(
             body,
-            "Will run in 30 second(s). Click this notification to cancel.",
+            "Will run in 30 seconds. Click this notification to cancel.",
         )
 
     def test_build_cancellation_body_preserves_non_cancelled_message(self) -> None:

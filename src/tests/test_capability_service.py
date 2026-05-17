@@ -8,40 +8,6 @@ from services.capability_service import CapabilityService
 
 
 class CapabilityServiceTests(unittest.TestCase):
-    @patch("services.capability_service.shutil.which")
-    def test_has_required_commands_returns_true_when_all_exist(
-        self,
-        mock_which,
-    ) -> None:
-        def which_side_effect(binary_name: str) -> str | None:
-            mapping = {
-                "systemd-run": "/usr/bin/systemd-run",
-                "systemctl": "/usr/bin/systemctl",
-                "loginctl": "/usr/bin/loginctl",
-            }
-            return mapping.get(binary_name)
-
-        mock_which.side_effect = which_side_effect
-
-        self.assertTrue(CapabilityService.has_required_commands())
-
-    @patch("services.capability_service.shutil.which")
-    def test_has_required_commands_returns_false_when_one_is_missing(
-        self,
-        mock_which,
-    ) -> None:
-        def which_side_effect(binary_name: str) -> str | None:
-            mapping = {
-                "systemd-run": "/usr/bin/systemd-run",
-                "systemctl": None,
-                "loginctl": "/usr/bin/loginctl",
-            }
-            return mapping.get(binary_name)
-
-        mock_which.side_effect = which_side_effect
-
-        self.assertFalse(CapabilityService.has_required_commands())
-
     @patch(
         "services.capability_service.shutil.which", return_value="/usr/bin/systemd-run"
     )
@@ -350,15 +316,6 @@ class CapabilityServiceTests(unittest.TestCase):
         result = CapabilityService._read_text_if_exists(Path("/fake/path"))
 
         self.assertEqual(result, "freeze mem disk")
-
-    @patch.object(CapabilityService, "get_hibernate_capability")
-    def test_can_hibernate_returns_boolean_from_capability(
-        self,
-        mock_get_hibernate_capability,
-    ) -> None:
-        mock_get_hibernate_capability.return_value.available = True
-
-        self.assertTrue(CapabilityService.can_hibernate())
 
     @patch.object(CapabilityService, "get_capabilities")
     def test_get_capabilities_returns_expected_keys(

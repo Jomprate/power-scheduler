@@ -20,7 +20,7 @@ class ShutdownServiceTests(unittest.TestCase):
         self.assertFalse(self.service.supports(PowerAction.LOCK))
         self.assertFalse(self.service.supports(PowerAction.LOG_OUT))
 
-    @patch("services.shutdown_service.shutil.which", return_value="/usr/bin/systemctl")
+    @patch("utils.process_utils.shutil.which", return_value="/usr/bin/systemctl")
     def test_build_action_command_returns_suspend_command(
         self,
         _mock_which,
@@ -32,7 +32,7 @@ class ShutdownServiceTests(unittest.TestCase):
             ["/usr/bin/systemctl", "start", "suspend.target"],
         )
 
-    @patch("services.shutdown_service.shutil.which", return_value="/usr/bin/systemctl")
+    @patch("utils.process_utils.shutil.which", return_value="/usr/bin/systemctl")
     def test_build_action_command_returns_hibernate_command(
         self,
         _mock_which,
@@ -44,7 +44,7 @@ class ShutdownServiceTests(unittest.TestCase):
             ["/usr/bin/systemctl", "start", "hibernate.target"],
         )
 
-    @patch("services.shutdown_service.shutil.which", return_value="/usr/bin/systemctl")
+    @patch("utils.process_utils.shutil.which", return_value="/usr/bin/systemctl")
     def test_build_action_command_returns_poweroff_command(
         self,
         _mock_which,
@@ -56,7 +56,7 @@ class ShutdownServiceTests(unittest.TestCase):
             ["/usr/bin/systemctl", "start", "poweroff.target"],
         )
 
-    @patch("services.shutdown_service.shutil.which", return_value=None)
+    @patch("utils.process_utils.shutil.which", return_value=None)
     def test_build_action_command_raises_when_systemctl_is_missing(
         self,
         _mock_which,
@@ -67,7 +67,7 @@ class ShutdownServiceTests(unittest.TestCase):
         ):
             self.service.build_action_command(PowerAction.HIBERNATE)
 
-    @patch("services.shutdown_service.shutil.which", return_value="/usr/bin/systemctl")
+    @patch("utils.process_utils.shutil.which", return_value="/usr/bin/systemctl")
     def test_build_action_command_raises_for_unsupported_action(
         self,
         _mock_which,

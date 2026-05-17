@@ -26,17 +26,6 @@ class CapabilityService:
     SYS_POWER_DISK_PATH = Path("/sys/power/disk")
 
     @classmethod
-    def has_required_commands(cls) -> bool:
-        """
-        Backward-compatible coarse check.
-
-        This answers whether the core command set used by the app exists,
-        but it should not be used as the only source of truth for UI state.
-        """
-        required = ["systemd-run", "systemctl", "loginctl"]
-        return all(cls._which(cmd) is not None for cmd in required)
-
-    @classmethod
     def get_capabilities(cls) -> dict[str, ActionCapability]:
         return {
             "lock": cls.get_lock_capability(),
@@ -182,29 +171,6 @@ class CapabilityService:
             available=False,
             reason="systemctl was not found in PATH.",
         )
-
-    @classmethod
-    def can_hibernate(cls) -> bool:
-        """
-        Backward-compatible boolean helper.
-        """
-        return cls.get_hibernate_capability().available
-
-    @classmethod
-    def can_suspend(cls) -> bool:
-        return cls.get_suspend_capability().available
-
-    @classmethod
-    def can_lock(cls) -> bool:
-        return cls.get_lock_capability().available
-
-    @classmethod
-    def can_logout(cls) -> bool:
-        return cls.get_logout_capability().available
-
-    @classmethod
-    def can_power_off(cls) -> bool:
-        return cls.get_power_off_capability().available
 
     @classmethod
     def _kernel_supports_suspend(cls) -> bool:

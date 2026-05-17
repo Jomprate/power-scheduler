@@ -172,6 +172,7 @@ class ScheduledJobRepositoryTests(unittest.TestCase):
         restored = self.repo.get_current_job()
 
         self.assertIsNotNone(restored)
+        assert restored is not None
         self.assertEqual(restored.unit_name, record.unit_name)
         self.assertEqual(restored.is_user_unit, record.is_user_unit)
         self.assertEqual(restored.action, record.action)
@@ -179,6 +180,7 @@ class ScheduledJobRepositoryTests(unittest.TestCase):
         self.assertEqual(restored.unit, record.unit)
         self.assertEqual(restored.command, record.command)
         self.assertIsNotNone(restored.created_at)
+        assert restored.created_at is not None
 
     def test_get_current_job_returns_none_when_no_file(self) -> None:
         result = self.repo.get_current_job()
@@ -227,20 +229,25 @@ class ScheduledJobRepositoryTests(unittest.TestCase):
     def test_has_current_job_returns_false_when_no_job(self) -> None:
         self.assertFalse(self.repo.has_current_job())
 
-    def test_save_current_job_adds_timestamp_when_missing(self) -> None:
+    def test_has_current_job_returns_false_for_empty_file(self) -> None:
+        self.storage_file.parent.mkdir(parents=True, exist_ok=True)
+        self.storage_file.write_text("", encoding="utf-8")
+        self.assertFalse(self.repo.has_current_job())
+
+    def test_save_current_job_preserves_existing_timestamp(self) -> None:
         record = ScheduledJobRecord(
             unit_name="power-scheduler-test",
             is_user_unit=False,
             action=PowerAction.SUSPEND,
             amount=10,
             unit=TimeUnit.MINUTES,
+            created_at="2025-01-01T00:00:00+00:00",
         )
         self.repo.save_current_job(record)
 
         raw = self.storage_file.read_text(encoding="utf-8")
         payload = json.loads(raw)
-        self.assertIn("created_at", payload)
-        self.assertIsNotNone(payload["created_at"])
+        self.assertEqual(payload["created_at"], "2025-01-01T00:00:00+00:00")
 
     def test_save_current_job_raises_for_empty_unit_name(self) -> None:
         with self.assertRaisesRegex(ValueError, "unit_name cannot be empty"):
@@ -265,6 +272,30 @@ class ScheduledJobRepositoryTests(unittest.TestCase):
                     unit=TimeUnit.SECONDS,
                 )
             )
+
+    def test_from_json_dict_raises_for_unknown_action_value(self) -> None:
+        with self.assertRaises(ValueError):
+            ScheduledJobRecord.from_json_dict(
+                {
+                    "unit_name": "test",
+                    "is_user_unit": False,
+                    "action": "unknown_action",
+                    "amount": 10,
+                    "unit": "seconds",
+                }
+            )
+
+    def test_from_json_dict_ignores_extra_fields(self) -> None:
+        data = {
+            "unit_name": "test",
+            "is_user_unit": False,
+            "action": "lock",
+            "amount": 10,
+            "unit": "seconds",
+            "extra_field": "should be ignored",
+        }
+        record = ScheduledJobRecord.from_json_dict(data)
+        self.assertEqual(record.unit_name, "test")
 
     def test_json_file_is_valid_json(self) -> None:
         record = ScheduledJobRecord(
