@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 from domain.enums import PowerAction, TimeUnit
 from domain.models import ScheduleRequest
 from services.scheduler_service import SchedulerService
+from utils.time_utils import to_seconds
 
 
 class SchedulerServiceTests(unittest.TestCase):
@@ -262,34 +263,25 @@ class SchedulerServiceTests(unittest.TestCase):
         self.assertFalse(result)
         self.session_service.supports.assert_called_once_with(PowerAction.SUSPEND)
 
-    def test_to_delay_seconds_returns_seconds_for_seconds_unit(self) -> None:
-        self.assertEqual(
-            self.service._to_delay_seconds(15, TimeUnit.SECONDS),
-            15,
-        )
+    def test_to_seconds_returns_seconds_for_seconds_unit(self) -> None:
+        self.assertEqual(to_seconds(15, TimeUnit.SECONDS), 15)
 
-    def test_to_delay_seconds_returns_seconds_for_minutes_unit(self) -> None:
-        self.assertEqual(
-            self.service._to_delay_seconds(3, TimeUnit.MINUTES),
-            180,
-        )
+    def test_to_seconds_returns_seconds_for_minutes_unit(self) -> None:
+        self.assertEqual(to_seconds(3, TimeUnit.MINUTES), 180)
 
-    def test_to_delay_seconds_returns_seconds_for_hours_unit(self) -> None:
-        self.assertEqual(
-            self.service._to_delay_seconds(2, TimeUnit.HOURS),
-            7200,
-        )
+    def test_to_seconds_returns_seconds_for_hours_unit(self) -> None:
+        self.assertEqual(to_seconds(2, TimeUnit.HOURS), 7200)
 
-    def test_to_delay_seconds_raises_for_non_positive_amount(self) -> None:
+    def test_to_seconds_raises_for_non_positive_amount(self) -> None:
         with self.assertRaisesRegex(
             ValueError,
             "Amount must be greater than zero",
         ):
-            self.service._to_delay_seconds(0, TimeUnit.SECONDS)
+            to_seconds(0, TimeUnit.SECONDS)
 
-    def test_to_delay_seconds_raises_for_unsupported_unit(self) -> None:
+    def test_to_seconds_raises_for_unsupported_unit(self) -> None:
         with self.assertRaisesRegex(ValueError, "Unsupported time unit"):
-            self.service._to_delay_seconds(1, "days")  # type: ignore[arg-type]
+            to_seconds(1, "days")  # type: ignore[arg-type]
 
     def test_generate_unit_name_contains_action_value(self) -> None:
         unit_name = self.service._generate_unit_name(PowerAction.LOCK)

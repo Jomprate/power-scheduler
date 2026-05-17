@@ -2,13 +2,19 @@ from domain.enums import TimeUnit
 
 
 def to_seconds(amount: int, unit: TimeUnit) -> int:
+    if amount <= 0:
+        raise ValueError("Amount must be greater than zero.")
+
     if unit == TimeUnit.SECONDS:
         return amount
+
     if unit == TimeUnit.MINUTES:
         return amount * 60
+
     if unit == TimeUnit.HOURS:
         return amount * 3600
-    raise ValueError("Unsupported time unit.")
+
+    raise ValueError(f"Unsupported time unit: {unit}")
 
 
 def to_systemd_time(amount: int, unit: TimeUnit) -> str:

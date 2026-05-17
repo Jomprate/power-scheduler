@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
-from domain.enums import PowerAction, TimeUnit
+from domain.enums import PowerAction
 from domain.models import ScheduleRequest
 from domain.validators import validate_schedule_request
 from repositories.scheduled_job_repository import (
@@ -13,7 +13,7 @@ from repositories.scheduled_job_repository import (
 from services.session_service import SessionService
 from services.shutdown_service import ShutdownService
 from services.systemd_service import SystemdService
-from utils.time_utils import format_human_time
+from utils.time_utils import format_human_time, to_seconds
 
 
 @dataclass(slots=True)
@@ -59,7 +59,7 @@ class SchedulerService:
         unit_name = self._generate_unit_name(request.action)
         is_user_unit = self._is_user_action(request.action)
         action_command = self._resolve_action_command(request.action)
-        delay_seconds = self._to_delay_seconds(request.amount, request.unit)
+        delay_seconds = to_seconds(request.amount, request.unit)
 
         result = self.systemd_service.schedule(
             unit_name=unit_name,
@@ -146,18 +146,3 @@ class SchedulerService:
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S%f")
         return f"power-scheduler-{action.value}-{timestamp}"
 
-    @staticmethod
-    def _to_delay_seconds(amount: int, unit: TimeUnit) -> int:
-        if amount <= 0:
-            raise ValueError("Amount must be greater than zero.")
-
-        if unit == TimeUnit.SECONDS:
-            return amount
-
-        if unit == TimeUnit.MINUTES:
-            return amount * 60
-
-        if unit == TimeUnit.HOURS:
-            return amount * 3600
-
-        raise ValueError(f"Unsupported time unit: {unit}")
