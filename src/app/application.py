@@ -225,6 +225,8 @@ class PowerSchedulerApplication(Adw.Application):
 
         css_data = self._build_system_palette_css()
         if not css_data.strip():
+            self._system_palette_provider.load_from_string("")
+            self._invalidate_all_windows()
             return
 
         if hasattr(self._system_palette_provider, "load_from_string"):
@@ -238,6 +240,7 @@ class PowerSchedulerApplication(Adw.Application):
         for window in self.get_windows():
             try:
                 window.queue_draw()
+                window.queue_resize()
             except Exception:
                 pass
 
