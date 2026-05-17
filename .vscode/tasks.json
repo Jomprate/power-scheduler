@@ -1,0 +1,113 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Run all tests",
+      "type": "shell",
+      "command": "python3",
+      "args": ["-m", "unittest", "discover", "-s", "src/tests", "-v"],
+      "options": {
+        "env": {
+          "PYTHONPATH": "${workspaceFolder}/src"
+        }
+      },
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "group": "test",
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Run current test file",
+      "type": "shell",
+      "command": "python3",
+      "args": ["-m", "unittest", "${relativeFile}", "-v"],
+      "options": {
+        "env": {
+          "PYTHONPATH": "${workspaceFolder}/src"
+        }
+      },
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": {
+        "group": "test",
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Lint (ruff check)",
+      "type": "shell",
+      "command": "ruff",
+      "args": ["check", "src"],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": {
+        "pattern": {
+          "regexp": "^(.*?):(\\d+):(\\d+):\\s+([A-Z]\\d+)\\s+(.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "code": 4,
+          "message": 5
+        }
+      },
+      "presentation": {
+        "group": "lint",
+        "reveal": "silent",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Format (ruff format)",
+      "type": "shell",
+      "command": "ruff",
+      "args": ["format", "src"],
+      "group": "build",
+      "problemMatcher": [],
+      "presentation": {
+        "group": "lint",
+        "reveal": "silent",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Full check",
+      "dependsOrder": "sequence",
+      "dependsOn": ["Lint (ruff check)", "Run all tests"],
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "group": "meta",
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Clean caches",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-c",
+        "find src -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null; find src -type f -name '*.pyc' -delete 2>/dev/null; rm -rf ~/.cache/power-scheduler/runtime-config 2>/dev/null; echo 'Caches cleaned'"
+      ],
+      "group": "none",
+      "problemMatcher": [],
+      "presentation": {
+        "group": "utils",
+        "reveal": "silent",
+        "panel": "shared"
+      }
+    }
+  ]
+}
