@@ -1,7 +1,7 @@
 import gi
 
-gi.require_version("Gtk", "4.0")
-gi.require_version("Adw", "1")
+gi.require_version("Gtk", "4.0")  # type: ignore[attr-defined]
+gi.require_version("Adw", "1")  # type: ignore[attr-defined]
 
 from pathlib import Path
 
