@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from domain.enums import PowerAction, TimeUnit
 from domain.models import ScheduledJobResult, ScheduleRequest
+from services.reminder_service import ReminderService
 from services.scheduler_service import SchedulerService
 
 
@@ -18,17 +19,26 @@ class JobState:
 
 
 class ScheduleController:
-    def __init__(self, scheduler_service: SchedulerService) -> None:
+    def __init__(
+        self,
+        scheduler_service: SchedulerService,
+        reminder_service: ReminderService,
+    ) -> None:
         self._scheduler_service = scheduler_service
+        self._reminder_service = reminder_service
         self._active_job: JobState | None = None
         self._sync()
 
     def schedule(self, request: ScheduleRequest) -> ScheduledJobResult:
         result = self._scheduler_service.schedule(request)
         self._sync()
+        if result.success:
+            self._reminder_service.schedule_reminders(request)
         return result
 
     def cancel(self) -> ScheduledJobResult | None:
+        self._reminder_service.clear_reminders()
+
         if self._active_job is None:
             return None
 

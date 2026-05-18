@@ -101,6 +101,12 @@ class PowerSchedulerApplication(Adw.Application):
         if self.notification_service is not None:
             self.notification_service.send_error_notification(message)
 
+    def show_reminder_notification(
+        self, minutes_left: int, request: ScheduleRequest
+    ) -> None:
+        if self.notification_service is not None:
+            self.notification_service.send_reminder_notification(minutes_left, request)
+
     def _on_cancel_scheduled_action(
         self,
         _action: Gio.SimpleAction,

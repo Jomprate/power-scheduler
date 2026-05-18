@@ -60,6 +60,25 @@ class NotificationService:
             notification,
         )
 
+    def send_reminder_notification(
+        self, minutes_left: int, request: ScheduleRequest
+    ) -> None:
+        action_label = self._format_action_label(request.action.value)
+        title = f"{action_label} in {minutes_left} minutes"
+        body = (
+            f"The scheduled action will run in {minutes_left} minutes. "
+            "Click to cancel before it executes."
+        )
+
+        notification = Gio.Notification.new(title)
+        notification.set_body(body)
+        notification.set_priority(Gio.NotificationPriority.HIGH)
+        notification.set_default_action("app.cancel-scheduled")
+        notification.add_button("Cancel action", "app.cancel-scheduled")
+
+        notification_id = f"reminder-{minutes_left}"
+        self._application.send_notification(notification_id, notification)
+
     def withdraw_scheduled_notification(self) -> None:
         self._application.withdraw_notification(self.SCHEDULED_NOTIFICATION_ID)
 
