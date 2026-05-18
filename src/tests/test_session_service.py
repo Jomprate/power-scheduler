@@ -11,6 +11,13 @@ class SessionServiceTests(unittest.TestCase):
     def setUp(self) -> None:
         self.service = SessionService()
 
+    @staticmethod
+    def _mock_which(
+        mock_which,
+        binaries: dict[str, str | None],
+    ) -> None:
+        mock_which.side_effect = binaries.get
+
     def test_supports_returns_true_for_session_actions(self) -> None:
         self.assertTrue(
             self.service.supports(PowerAction.LOCK),
@@ -41,12 +48,7 @@ class SessionServiceTests(unittest.TestCase):
         self,
         mock_which,
     ) -> None:
-        def which_side_effect(binary_name: str) -> str | None:
-            if binary_name == "loginctl":
-                return "/usr/bin/loginctl"
-            return None
-
-        mock_which.side_effect = which_side_effect
+        self._mock_which(mock_which, {"loginctl": "/usr/bin/loginctl"})
 
         command = self.service.build_action_command(PowerAction.LOCK)
 
@@ -62,12 +64,7 @@ class SessionServiceTests(unittest.TestCase):
         self,
         mock_which,
     ) -> None:
-        def which_side_effect(binary_name: str) -> str | None:
-            if binary_name == "loginctl":
-                return "/usr/bin/loginctl"
-            return None
-
-        mock_which.side_effect = which_side_effect
+        self._mock_which(mock_which, {"loginctl": "/usr/bin/loginctl"})
 
         command = self.service.build_action_command(PowerAction.LOCK)
 
@@ -95,14 +92,13 @@ class SessionServiceTests(unittest.TestCase):
         self,
         mock_which,
     ) -> None:
-        def which_side_effect(binary_name: str) -> str | None:
-            if binary_name == "gnome-session-quit":
-                return "/usr/bin/gnome-session-quit"
-            if binary_name == "loginctl":
-                return "/usr/bin/loginctl"
-            return None
-
-        mock_which.side_effect = which_side_effect
+        self._mock_which(
+            mock_which,
+            {
+                "gnome-session-quit": "/usr/bin/gnome-session-quit",
+                "loginctl": "/usr/bin/loginctl",
+            },
+        )
 
         command = self.service.build_action_command(PowerAction.LOG_OUT)
 
@@ -122,14 +118,10 @@ class SessionServiceTests(unittest.TestCase):
         self,
         mock_which,
     ) -> None:
-        def which_side_effect(binary_name: str) -> str | None:
-            if binary_name == "gnome-session-quit":
-                return None
-            if binary_name == "loginctl":
-                return "/usr/bin/loginctl"
-            return None
-
-        mock_which.side_effect = which_side_effect
+        self._mock_which(
+            mock_which,
+            {"gnome-session-quit": None, "loginctl": "/usr/bin/loginctl"},
+        )
 
         command = self.service.build_action_command(PowerAction.LOG_OUT)
 
@@ -145,14 +137,10 @@ class SessionServiceTests(unittest.TestCase):
         self,
         mock_which,
     ) -> None:
-        def which_side_effect(binary_name: str) -> str | None:
-            if binary_name == "gnome-session-quit":
-                return None
-            if binary_name == "loginctl":
-                return "/usr/bin/loginctl"
-            return None
-
-        mock_which.side_effect = which_side_effect
+        self._mock_which(
+            mock_which,
+            {"gnome-session-quit": None, "loginctl": "/usr/bin/loginctl"},
+        )
 
         with self.assertRaisesRegex(
             RuntimeError,

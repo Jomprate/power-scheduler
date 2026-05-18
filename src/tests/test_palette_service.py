@@ -16,41 +16,37 @@ def _make_service() -> PaletteService:
 
 
 class BuildPaletteCssTests(unittest.TestCase):
-    def test_returns_empty_when_no_palette_and_no_user_css(self) -> None:
-        service = _make_service()
-
+    def _assert_build_palette_css_empty(
+        self,
+        service: PaletteService,
+        *,
+        preferred_palette: Path | None = None,
+        user_css: Path | None = None,
+    ) -> None:
         with (
-            patch.object(service, "_get_preferred_palette", return_value=None),
-            patch.object(service, "_get_user_css", return_value=None),
+            patch.object(
+                service, "_get_preferred_palette", return_value=preferred_palette
+            ),
+            patch.object(service, "_get_user_css", return_value=user_css),
         ):
             result = service._build_palette_css()
 
         self.assertEqual(result, "")
+
+    def test_returns_empty_when_no_palette_and_no_user_css(self) -> None:
+        self._assert_build_palette_css_empty(_make_service())
 
     def test_returns_empty_when_palette_file_does_not_exist(self) -> None:
-        service = _make_service()
-        fake_path = Path("/nonexistent/palette.css")
-
-        with (
-            patch.object(service, "_get_preferred_palette", return_value=fake_path),
-            patch.object(service, "_get_user_css", return_value=None),
-        ):
-            result = service._build_palette_css()
-
-        self.assertEqual(result, "")
+        self._assert_build_palette_css_empty(
+            _make_service(),
+            preferred_palette=Path("/nonexistent/palette.css"),
+        )
 
     def test_returns_empty_when_fallback_does_not_exist(self) -> None:
-        service = _make_service()
-
-        with (
-            patch.object(service, "_get_preferred_palette", return_value=None),
-            patch.object(
-                service, "_get_user_css", return_value=Path("/nonexistent/gtk.css")
-            ),
-        ):
-            result = service._build_palette_css()
-
-        self.assertEqual(result, "")
+        self._assert_build_palette_css_empty(
+            _make_service(),
+            user_css=Path("/nonexistent/gtk.css"),
+        )
 
     def test_returns_empty_when_file_has_no_define_color_rules(self) -> None:
         service = _make_service()
@@ -121,6 +117,30 @@ class BuildPaletteCssTests(unittest.TestCase):
 
 
 class GetPreferredPaletteTests(unittest.TestCase):
+    def _assert_preferred_palette(
+        self,
+        service: PaletteService,
+        *,
+        is_dark: bool,
+        expected_name: str,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            cosmic_dir = Path(tmp) / ".config" / "gtk-4.0" / "cosmic"
+            cosmic_dir.mkdir(parents=True)
+            css_file = cosmic_dir / ("dark.css" if is_dark else "light.css")
+            css_file.write_text("", encoding="utf-8")
+
+            with (
+                patch("services.palette_service.Path.home", return_value=Path(tmp)),
+                patch.object(
+                    service._style_manager, "get_dark", return_value=is_dark
+                ),
+            ):
+                result = service._get_preferred_palette()
+
+            self.assertIsNotNone(result)
+            self.assertEqual(result.name, expected_name)
+
     def test_returns_none_when_cosmic_dir_does_not_exist(self) -> None:
         service = _make_service()
 
@@ -133,40 +153,14 @@ class GetPreferredPaletteTests(unittest.TestCase):
         self.assertIsNone(result)
 
     def test_returns_dark_css_when_dark_mode(self) -> None:
-        service = _make_service()
-
-        with tempfile.TemporaryDirectory() as tmp:
-            cosmic_dir = Path(tmp) / ".config" / "gtk-4.0" / "cosmic"
-            cosmic_dir.mkdir(parents=True)
-            dark_css = cosmic_dir / "dark.css"
-            dark_css.write_text("", encoding="utf-8")
-
-            with (
-                patch("services.palette_service.Path.home", return_value=Path(tmp)),
-                patch.object(service._style_manager, "get_dark", return_value=True),
-            ):
-                result = service._get_preferred_palette()
-
-            self.assertIsNotNone(result)
-            self.assertEqual(result.name, "dark.css")
+        self._assert_preferred_palette(
+            _make_service(), is_dark=True, expected_name="dark.css"
+        )
 
     def test_returns_light_css_when_light_mode(self) -> None:
-        service = _make_service()
-
-        with tempfile.TemporaryDirectory() as tmp:
-            cosmic_dir = Path(tmp) / ".config" / "gtk-4.0" / "cosmic"
-            cosmic_dir.mkdir(parents=True)
-            light_css = cosmic_dir / "light.css"
-            light_css.write_text("", encoding="utf-8")
-
-            with (
-                patch("services.palette_service.Path.home", return_value=Path(tmp)),
-                patch.object(service._style_manager, "get_dark", return_value=False),
-            ):
-                result = service._get_preferred_palette()
-
-            self.assertIsNotNone(result)
-            self.assertEqual(result.name, "light.css")
+        self._assert_preferred_palette(
+            _make_service(), is_dark=False, expected_name="light.css"
+        )
 
 
 class GetUserCssTests(unittest.TestCase):
