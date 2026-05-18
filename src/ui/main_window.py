@@ -205,7 +205,7 @@ class MainWindow(Adw.ApplicationWindow):
             self._apply_schedule_result(result)
             self._notify_schedule_created(request, result)
 
-        except (ValueError, RuntimeError) as exc:
+        except Exception as exc:
             self._status_panel.set_status_content(f"Error: {exc}", "")
             self._notify_error(f"Error: {exc}")
 
@@ -213,7 +213,12 @@ class MainWindow(Adw.ApplicationWindow):
             self._set_schedule_controls_enabled(True)
 
     def _on_cancel_clicked(self, _button: Gtk.Button) -> None:
-        result = self._controller.cancel()
+        try:
+            result = self._controller.cancel()
+        except Exception as exc:
+            self._status_panel.set_status_content(f"Error: {exc}", "")
+            self._notify_error(f"Error: {exc}")
+            return
 
         if result is None:
             self._status_panel.set_status_content("No scheduled action to cancel.", "")

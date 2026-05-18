@@ -149,7 +149,12 @@ class PowerSchedulerApplication(Adw.Application):
         _action: Gio.SimpleAction,
         _parameter: GLib.Variant | None,
     ) -> None:
-        result = self._controller.cancel()
+        try:
+            result = self._controller.cancel()
+        except Exception as exc:
+            if self.notification_service is not None:
+                self.notification_service.send_error_notification(str(exc))
+            return
 
         if self.notification_service is None:
             return

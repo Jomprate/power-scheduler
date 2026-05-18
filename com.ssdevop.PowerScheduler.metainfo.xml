@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.ssdevop.PowerScheduler</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>Power Scheduler</name>
+  <summary>Schedule Linux power actions without keeping the app open</summary>
+  <description>
+    <p>
+      Power Scheduler lets you delay lock, log out, suspend, hibernate or
+      power off your Linux system. Actions are scheduled through systemd
+      transient timers so they survive even when you close the application.
+    </p>
+  </description>
+  <launchable type="desktop-id">com.ssdevop.PowerScheduler.desktop</launchable>
+  <developer_name>ssdevop</developer_name>
+  <url type="homepage">https://github.com/ssdevopl/power-scheduler</url>
+  <url type="bugtracker">https://github.com/ssdevopl/power-scheduler/issues</url>
+  <content_rating type="oars-1.1" />
+  <releases>
+    <release version="0.1.0" date="2025-05-17" />
+  </releases>
+  <screenshots>
+    <screenshot type="default">
+      <caption>Main window</caption>
+    </screenshot>
+  </screenshots>
+</component>

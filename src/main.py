@@ -21,8 +21,16 @@ def _prepare_isolated_gtk_config() -> None:
 
 
 def _cleanup_runtime_config() -> None:
-    with contextlib.suppress(Exception):
-        shutil.rmtree(APP_RUNTIME_CONFIG_DIR, ignore_errors=True)
+    target = APP_RUNTIME_CONFIG_DIR
+
+    # Safety guard: only remove paths that clearly belong to this app.
+    if (
+        target.exists()
+        and target.is_dir()
+        and "power-scheduler" in target.resolve().as_posix()
+    ):
+        with contextlib.suppress(Exception):
+            shutil.rmtree(target, ignore_errors=True)
 
 
 _prepare_isolated_gtk_config()
