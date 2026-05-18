@@ -4,7 +4,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, call, patch
 
-from services.systemd_service import SystemdService
+from services.systemd_service import SystemdScheduleParams, SystemdService
 
 
 class SystemdServiceTests(unittest.TestCase):
@@ -39,11 +39,13 @@ class SystemdServiceTests(unittest.TestCase):
         mock_which.side_effect = self._systemd_run_path
 
         command = self.service.build_schedule_command(
-            unit_name="power-scheduler-lock-test",
-            command=["/usr/bin/loginctl", "lock-session", "42"],
-            delay_seconds=15,
-            is_user_unit=True,
-            description="Power Scheduler: lock",
+            SystemdScheduleParams(
+                unit_name="power-scheduler-lock-test",
+                command=["/usr/bin/loginctl", "lock-session", "42"],
+                delay_seconds=15,
+                is_user_unit=True,
+                description="Power Scheduler: lock",
+            )
         )
 
         self.assertEqual(
@@ -76,11 +78,13 @@ class SystemdServiceTests(unittest.TestCase):
         mock_which.side_effect = self._systemd_run_path
 
         command = self.service.build_schedule_command(
-            unit_name="power-scheduler-suspend-test",
-            command=["/usr/bin/systemctl", "suspend"],
-            delay_seconds=30,
-            is_user_unit=False,
-            description="Power Scheduler: suspend",
+            SystemdScheduleParams(
+                unit_name="power-scheduler-suspend-test",
+                command=["/usr/bin/systemctl", "suspend"],
+                delay_seconds=30,
+                is_user_unit=False,
+                description="Power Scheduler: suspend",
+            )
         )
 
         self.assertEqual(
@@ -111,11 +115,13 @@ class SystemdServiceTests(unittest.TestCase):
         mock_which.return_value = "/usr/bin/systemd-run"
 
         command = self.service.build_schedule_command(
-            unit_name="power-scheduler-test",
-            command=["/usr/bin/systemctl", "suspend"],
-            delay_seconds=10,
-            is_user_unit=False,
-            description="   ",
+            SystemdScheduleParams(
+                unit_name="power-scheduler-test",
+                command=["/usr/bin/systemctl", "suspend"],
+                delay_seconds=10,
+                is_user_unit=False,
+                description="   ",
+            )
         )
 
         self.assertEqual(
@@ -176,13 +182,15 @@ class SystemdServiceTests(unittest.TestCase):
         with self.assertRaisesRegex(
             RuntimeError,
             "Required binary not found: systemd-run",
-        ):
+            ):
             self.service.build_schedule_command(
-                unit_name="power-scheduler-test",
-                command=["/usr/bin/systemctl", "suspend"],
-                delay_seconds=10,
-                is_user_unit=False,
-                description="Power Scheduler: test",
+                SystemdScheduleParams(
+                    unit_name="power-scheduler-test",
+                    command=["/usr/bin/systemctl", "suspend"],
+                    delay_seconds=10,
+                    is_user_unit=False,
+                    description="Power Scheduler: test",
+            )
             )
 
     @patch("utils.process_utils.shutil.which")
@@ -195,7 +203,7 @@ class SystemdServiceTests(unittest.TestCase):
         with self.assertRaisesRegex(
             RuntimeError,
             "Required binary not found: systemctl",
-        ):
+            ):
             self.service._build_systemctl_base(False)
 
     @patch("utils.process_utils.shutil.which", return_value="/usr/bin/systemd-run")
@@ -205,12 +213,14 @@ class SystemdServiceTests(unittest.TestCase):
     ) -> None:
         with self.assertRaisesRegex(ValueError, "unit_name cannot be empty"):
             self.service.build_schedule_command(
-                unit_name="",
-                command=["/usr/bin/systemctl", "suspend"],
-                delay_seconds=10,
-                is_user_unit=False,
-                description="Power Scheduler: test",
+            SystemdScheduleParams(
+            unit_name="",
+            command=["/usr/bin/systemctl", "suspend"],
+            delay_seconds=10,
+            is_user_unit=False,
+            description="Power Scheduler: test",
             )
+        )
 
     @patch("utils.process_utils.shutil.which", return_value="/usr/bin/systemd-run")
     def test_build_schedule_command_raises_when_command_is_empty(
@@ -219,12 +229,14 @@ class SystemdServiceTests(unittest.TestCase):
     ) -> None:
         with self.assertRaisesRegex(ValueError, "command cannot be empty"):
             self.service.build_schedule_command(
-                unit_name="power-scheduler-test",
-                command=[],
-                delay_seconds=10,
-                is_user_unit=False,
-                description="Power Scheduler: test",
+            SystemdScheduleParams(
+            unit_name="power-scheduler-test",
+            command=[],
+            delay_seconds=10,
+            is_user_unit=False,
+            description="Power Scheduler: test",
             )
+        )
 
     @patch("utils.process_utils.shutil.which", return_value="/usr/bin/systemd-run")
     def test_build_schedule_command_raises_when_command_contains_empty_part(
@@ -234,14 +246,16 @@ class SystemdServiceTests(unittest.TestCase):
         with self.assertRaisesRegex(
             ValueError,
             "command cannot contain empty parts",
-        ):
+            ):
             self.service.build_schedule_command(
+            SystemdScheduleParams(
                 unit_name="power-scheduler-test",
                 command=["/usr/bin/systemctl", ""],
-                delay_seconds=10,
-                is_user_unit=False,
+            delay_seconds=10,
+            is_user_unit=False,
                 description="Power Scheduler: test",
             )
+        )
 
     @patch("utils.process_utils.shutil.which", return_value="/usr/bin/systemd-run")
     def test_build_schedule_command_raises_when_delay_is_not_positive(
@@ -251,14 +265,16 @@ class SystemdServiceTests(unittest.TestCase):
         with self.assertRaisesRegex(
             ValueError,
             "delay_seconds must be greater than zero",
-        ):
+            ):
             self.service.build_schedule_command(
+            SystemdScheduleParams(
                 unit_name="power-scheduler-test",
                 command=["/usr/bin/systemctl", "suspend"],
-                delay_seconds=0,
-                is_user_unit=False,
+            delay_seconds=0,
+            is_user_unit=False,
                 description="Power Scheduler: test",
             )
+        )
 
     @patch("services.systemd_service.run_command")
     @patch("utils.process_utils.shutil.which", return_value="/usr/bin/systemd-run")
@@ -273,11 +289,13 @@ class SystemdServiceTests(unittest.TestCase):
         )
 
         result = self.service.schedule(
-            unit_name="power-scheduler-lock-test",
-            command=["/usr/bin/loginctl", "lock-session", "42"],
-            delay_seconds=15,
-            is_user_unit=True,
-            description="Power Scheduler: lock",
+            SystemdScheduleParams(
+                unit_name="power-scheduler-lock-test",
+                command=["/usr/bin/loginctl", "lock-session", "42"],
+                delay_seconds=15,
+                is_user_unit=True,
+                description="Power Scheduler: lock",
+            )
         )
 
         self.assertTrue(result.success)
@@ -332,35 +350,41 @@ class SystemdServiceTests(unittest.TestCase):
     def test_schedule_raises_when_unit_name_is_blank(self) -> None:
         with self.assertRaisesRegex(ValueError, "unit_name cannot be empty"):
             self.service.schedule(
-                unit_name="   ",
-                command=["/usr/bin/systemctl", "suspend"],
-                delay_seconds=10,
-                is_user_unit=False,
-                description="Power Scheduler: suspend",
+            SystemdScheduleParams(
+            unit_name="   ",
+            command=["/usr/bin/systemctl", "suspend"],
+            delay_seconds=10,
+            is_user_unit=False,
+            description="Power Scheduler: suspend",
             )
+        )
 
     def test_schedule_raises_when_command_is_empty(self) -> None:
         with self.assertRaisesRegex(ValueError, "command cannot be empty"):
             self.service.schedule(
-                unit_name="power-scheduler-test",
-                command=[],
-                delay_seconds=10,
-                is_user_unit=False,
-                description="Power Scheduler: suspend",
+            SystemdScheduleParams(
+            unit_name="power-scheduler-test",
+            command=[],
+            delay_seconds=10,
+            is_user_unit=False,
+            description="Power Scheduler: suspend",
             )
+        )
 
     def test_schedule_raises_when_delay_is_not_positive(self) -> None:
         with self.assertRaisesRegex(
             ValueError,
             "delay_seconds must be greater than zero",
-        ):
+            ):
             self.service.schedule(
+            SystemdScheduleParams(
                 unit_name="power-scheduler-test",
                 command=["/usr/bin/systemctl", "suspend"],
-                delay_seconds=-1,
-                is_user_unit=False,
+            delay_seconds=-1,
+            is_user_unit=False,
                 description="Power Scheduler: suspend",
             )
+        )
 
     @patch("services.systemd_service.run_command")
     @patch("utils.process_utils.shutil.which", return_value="/usr/bin/systemctl")
@@ -414,8 +438,8 @@ class SystemdServiceTests(unittest.TestCase):
     def test_cancel_raises_when_unit_name_is_blank(self) -> None:
         with self.assertRaisesRegex(ValueError, "unit_name cannot be empty"):
             self.service.cancel(
-                unit_name="   ",
-                is_user_unit=False,
+            unit_name="   ",
+            is_user_unit=False,
             )
 
 

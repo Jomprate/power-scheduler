@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 from domain.enums import PowerAction, TimeUnit
 from domain.models import ScheduleRequest
 from services.scheduler_service import SchedulerService
+from services.systemd_service import SystemdScheduleParams
 
 
 class SchedulerServiceTests(unittest.TestCase):
@@ -80,11 +81,13 @@ class SchedulerServiceTests(unittest.TestCase):
         self.shutdown_service.build_action_command.assert_not_called()
 
         self.systemd_service.schedule.assert_called_once_with(
-            unit_name="power-scheduler-lock-123",
-            command=["/usr/bin/loginctl", "lock-session", "42"],
-            delay_seconds=15,
-            is_user_unit=True,
-            description="Power Scheduler: lock",
+            SystemdScheduleParams(
+                unit_name="power-scheduler-lock-123",
+                command=["/usr/bin/loginctl", "lock-session", "42"],
+                delay_seconds=15,
+                is_user_unit=True,
+                description="Power Scheduler: lock",
+            )
         )
 
         self.assertTrue(result.success)
@@ -153,11 +156,13 @@ class SchedulerServiceTests(unittest.TestCase):
         self.session_service.build_action_command.assert_not_called()
 
         self.systemd_service.schedule.assert_called_once_with(
-            unit_name="power-scheduler-suspend-123",
-            command=["/usr/bin/systemctl", "suspend"],
-            delay_seconds=120,
-            is_user_unit=False,
-            description="Power Scheduler: suspend",
+            SystemdScheduleParams(
+                unit_name="power-scheduler-suspend-123",
+                command=["/usr/bin/systemctl", "suspend"],
+                delay_seconds=120,
+                is_user_unit=False,
+                description="Power Scheduler: suspend",
+            )
         )
 
         self.assertTrue(result.success)

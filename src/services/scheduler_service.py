@@ -11,7 +11,7 @@ from repositories.scheduled_job_repository import (
     ScheduledJobRepository,
 )
 from services.protocols import PowerActionService
-from services.systemd_service import SystemdService
+from services.systemd_service import SystemdScheduleParams, SystemdService
 from utils.time_utils import format_human_time, to_seconds
 
 
@@ -46,11 +46,13 @@ class SchedulerService:
         delay_seconds = to_seconds(request.amount, request.unit)
 
         result = self._systemd_service.schedule(
-            unit_name=unit_name,
-            command=action_command,
-            delay_seconds=delay_seconds,
-            is_user_unit=is_user_unit,
-            description=f"Power Scheduler: {request.action.value}",
+            SystemdScheduleParams(
+                unit_name=unit_name,
+                command=action_command,
+                delay_seconds=delay_seconds,
+                is_user_unit=is_user_unit,
+                description=f"Power Scheduler: {request.action.value}",
+            )
         )
 
         scheduled_for = format_human_time(request.amount, request.unit)
