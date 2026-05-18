@@ -49,6 +49,10 @@ class MainWindow(Adw.ApplicationWindow):
         toolbar_view.add_css_class("app-shell")
         self.set_content(toolbar_view)
 
+        self._build_header(toolbar_view)
+        toolbar_view.set_content(self._build_content())
+
+    def _build_header(self, toolbar_view: Adw.ToolbarView) -> None:
         header_bar = Adw.HeaderBar()
         header_bar.set_show_start_title_buttons(False)
         header_bar.set_show_end_title_buttons(True)
@@ -62,9 +66,9 @@ class MainWindow(Adw.ApplicationWindow):
         )
         toolbar_view.add_top_bar(header_bar)
 
+    def _build_content(self) -> Adw.Clamp:
         clamp = Adw.Clamp()
         clamp.set_maximum_size(980)
-        toolbar_view.set_content(clamp)
 
         page_box = Gtk.Box(
             orientation=Gtk.Orientation.VERTICAL,
@@ -80,6 +84,12 @@ class MainWindow(Adw.ApplicationWindow):
         page_box.add_css_class("content-surface")
         clamp.set_child(page_box)
 
+        self._build_hero(page_box)
+        self._build_form_row(page_box)
+
+        return clamp
+
+    def _build_hero(self, page_box: Gtk.Box) -> None:
         hero_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         hero_box.add_css_class("hero-box")
         page_box.append(hero_box)
@@ -110,6 +120,7 @@ class MainWindow(Adw.ApplicationWindow):
         page_subtitle.add_css_class("dim-label")
         hero_box.append(page_subtitle)
 
+    def _build_form_row(self, page_box: Gtk.Box) -> None:
         content_row = Gtk.Box(
             orientation=Gtk.Orientation.HORIZONTAL,
             spacing=12,
@@ -142,12 +153,20 @@ class MainWindow(Adw.ApplicationWindow):
 
         self._form.cancel_button.set_sensitive(True)
 
-        if job.action is not None and job.unit is not None and job.amount is not None:
+        if self._can_restore_form(job):
             self._form.restore(job.action, job.amount, job.unit)
 
         self._status_panel.set_status_content(
             f"Recovered scheduled action: {job.unit_name}",
             job.command,
+        )
+
+    @staticmethod
+    def _can_restore_form(job) -> bool:
+        return (
+            job.action is not None
+            and job.unit is not None
+            and job.amount is not None
         )
 
     def _on_form_changed(self, *_args) -> None:

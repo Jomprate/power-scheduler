@@ -67,7 +67,8 @@ class SessionService(PowerActionService):
         session_id = self._get_session_id()
         if not session_id:
             raise RuntimeError(
-                "Unable to determine the current session id for log out action."
+                "Log out requires XDG_SESSION_ID, but it is not set. "
+                "Run the app from a graphical session."
             )
 
         loginctl_path = which_required("loginctl")

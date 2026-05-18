@@ -156,7 +156,7 @@ class SessionServiceTests(unittest.TestCase):
 
         with self.assertRaisesRegex(
             RuntimeError,
-            "Unable to determine the current session id",
+            "Log out requires XDG_SESSION_ID",
         ):
             self.service.build_action_command(PowerAction.LOG_OUT)
 

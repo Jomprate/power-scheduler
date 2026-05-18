@@ -97,12 +97,21 @@ class CapabilityService:
 
         loginctl = self._probe.find_binary("loginctl")
         if loginctl:
+            if self._has_session_id():
+                return ActionCapability(
+                    action_key="log_out",
+                    available=True,
+                    reason=(
+                        "gnome-session-quit was not found, but loginctl is available "
+                        f"at {loginctl} for terminate-session fallback."
+                    ),
+                )
             return ActionCapability(
                 action_key="log_out",
-                available=True,
+                available=False,
                 reason=(
-                    "gnome-session-quit was not found, but loginctl is available "
-                    f"at {loginctl} for terminate-session fallback."
+                    "loginctl is available, but XDG_SESSION_ID is not set. "
+                    "Log out requires a graphical session environment."
                 ),
             )
 
@@ -111,6 +120,12 @@ class CapabilityService:
             available=False,
             reason="Neither gnome-session-quit nor loginctl was found in PATH.",
         )
+
+    @staticmethod
+    def _has_session_id() -> bool:
+        import os
+
+        return bool(os.environ.get("XDG_SESSION_ID", "").strip())
 
     def get_suspend_capability(self) -> ActionCapability:
         return self._make_systemctl_kernel_capability(

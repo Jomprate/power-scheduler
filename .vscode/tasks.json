@@ -115,9 +115,13 @@
       "command": "flatpak-spawn",
       "args": [
         "--host",
-        "bash",
-        "-c",
-        "cd ${workspaceFolder} && PYTHONPATH=src python3 src/main.py"
+        "--env=DISPLAY=${env:DISPLAY}",
+        "--env=WAYLAND_DISPLAY=${env:WAYLAND_DISPLAY}",
+        "--env=XDG_SESSION_ID=${env:XDG_SESSION_ID}",
+        "--env=XDG_CURRENT_DESKTOP=${env:XDG_CURRENT_DESKTOP}",
+        "--env=PYTHONPATH=${workspaceFolder}/src",
+        "python3",
+        "${workspaceFolder}/src/main.py"
       ],
       "group": "none",
       "problemMatcher": [],

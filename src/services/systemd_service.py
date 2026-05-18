@@ -60,15 +60,38 @@ class SystemdService:
 
         result = run_command(schedule_command)
 
+        stdout = (result.stdout or "").strip()
+        stderr = (result.stderr or "").strip()
+
+        if self._has_polkit_error(stderr):
+            return SystemdScheduleResult(
+                success=False,
+                message=(
+                    f"Scheduled unit {params.unit_name}, but it may fail due to "
+                    "missing privileges. System actions (suspend/hibernate/power off) "
+                    "require passwordless polkit rules or a graphical session."
+                ),
+                unit_name=params.unit_name,
+                is_user_unit=params.is_user_unit,
+                command=schedule_command,
+                stdout=stdout,
+                stderr=stderr,
+            )
+
         return SystemdScheduleResult(
             success=True,
             message=f"Scheduled transient unit: {params.unit_name}",
             unit_name=params.unit_name,
             is_user_unit=params.is_user_unit,
             command=schedule_command,
-            stdout=(result.stdout or "").strip(),
-            stderr=(result.stderr or "").strip(),
+            stdout=stdout,
+            stderr=stderr,
         )
+
+    @staticmethod
+    def _has_polkit_error(stderr: str) -> bool:
+        lowered = stderr.lower()
+        return "polkit" in lowered or "authentication" in lowered
 
     def cancel(
         self,
@@ -148,7 +171,7 @@ class SystemdService:
             result = run_command(args, check=False)
             if result.returncode != 0:
                 stderr = (result.stderr or "").strip()
-                if stderr:
+                if stderr and "not loaded" not in stderr.lower():
                     messages.append(stderr)
 
         return messages

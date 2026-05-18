@@ -55,28 +55,37 @@ class SchedulerService:
             )
         )
 
-        scheduled_for = format_human_time(request.amount, request.unit)
-        stdout = result.stdout.strip()
-        stderr = result.stderr.strip()
+        if not result.success:
+            ui_result = ScheduledJobResult(
+                success=False,
+                message=result.message,
+                unit_name=unit_name,
+                is_user_unit=is_user_unit,
+                command=shlex.join(result.command),
+            )
+        else:
+            scheduled_for = format_human_time(request.amount, request.unit)
+            stdout = result.stdout.strip()
+            stderr = result.stderr.strip()
 
-        message_parts = [
-            f"Scheduled {request.action.value} in {scheduled_for}.",
-            f"Unit: {unit_name}",
-        ]
+            message_parts = [
+                f"Scheduled {request.action.value} in {scheduled_for}.",
+                f"Unit: {unit_name}",
+            ]
 
-        if stdout:
-            message_parts.append(stdout)
+            if stdout:
+                message_parts.append(stdout)
 
-        if stderr:
-            message_parts.append(stderr)
+            if stderr:
+                message_parts.append(stderr)
 
-        ui_result = ScheduledJobResult(
-            success=True,
-            message="\n".join(message_parts),
-            unit_name=unit_name,
-            is_user_unit=is_user_unit,
-            command=shlex.join(result.command),
-        )
+            ui_result = ScheduledJobResult(
+                success=True,
+                message="\n".join(message_parts),
+                unit_name=unit_name,
+                is_user_unit=is_user_unit,
+                command=shlex.join(result.command),
+            )
 
         self._scheduled_job_repository.save_current_job(
             ScheduledJobRecord(
