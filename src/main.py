@@ -20,15 +20,18 @@ def _prepare_isolated_gtk_config() -> None:
     os.environ["XDG_CONFIG_HOME"] = str(runtime_config_dir)
 
 
+def _is_safe_to_remove_runtime_dir(path: Path) -> bool:
+    return (
+        path.exists()
+        and path.is_dir()
+        and "power-scheduler" in path.resolve().as_posix()
+    )
+
+
 def _cleanup_runtime_config() -> None:
     target = APP_RUNTIME_CONFIG_DIR
 
-    # Safety guard: only remove paths that clearly belong to this app.
-    if (
-        target.exists()
-        and target.is_dir()
-        and "power-scheduler" in target.resolve().as_posix()
-    ):
+    if _is_safe_to_remove_runtime_dir(target):
         with contextlib.suppress(Exception):
             shutil.rmtree(target, ignore_errors=True)
 
