@@ -1,0 +1,3 @@
+[D-BUS Service]
+Name=com.ssdevop.PowerScheduler
+Exec=/home/ssdevopl/Documentos/Linux_Developments/power-scheduler/run.sh

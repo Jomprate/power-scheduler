@@ -6,3 +6,4 @@ Icon=/home/ssdevopl/Documentos/Linux_Developments/power-scheduler/assets/icons/a
 Type=Application
 Terminal=false
 Categories=System;Settings;
+DBusActivatable=true

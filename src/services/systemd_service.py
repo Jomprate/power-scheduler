@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 from dataclasses import dataclass
 
 from utils.process_utils import run_command, which_required
@@ -55,6 +56,9 @@ class SystemdService:
     _ERR_COMMAND_BLANK_PART = "command cannot contain empty parts."
     _ERR_DELAY_NOT_POSITIVE = "delay_seconds must be greater than zero."
 
+    _REMINDER_MINUTES = (10, 5)
+    _APP_ID = "com.ssdevop.PowerScheduler"
+
     def schedule(self, params: SystemdScheduleParams) -> SystemdScheduleResult:
         schedule_command = self.build_schedule_command(params)
 
@@ -78,6 +82,8 @@ class SystemdService:
                 stderr=stderr,
             )
 
+        self._schedule_reminders(params)
+
         return SystemdScheduleResult(
             success=True,
             message=f"Scheduled transient unit: {params.unit_name}",
@@ -87,6 +93,53 @@ class SystemdService:
             stdout=stdout,
             stderr=stderr,
         )
+
+    def _schedule_reminders(self, params: SystemdScheduleParams) -> None:
+        gapplication_path = shutil.which("gapplication")
+        if gapplication_path is None:
+            return
+
+        for minutes_before in self._REMINDER_MINUTES:
+            if params.delay_seconds > minutes_before * 60:
+                self._create_reminder_timer(
+                    params, minutes_before, gapplication_path
+                )
+
+    def _create_reminder_timer(
+        self,
+        params: SystemdScheduleParams,
+        minutes_before: int,
+        gapplication_path: str,
+    ) -> None:
+        reminder_delay = params.delay_seconds - (minutes_before * 60)
+        unit_name = f"{params.unit_name}-reminder-{minutes_before}m"
+
+        systemd_run_path = which_required("systemd-run")
+
+        cmd: list[str] = [systemd_run_path]
+
+        if params.is_user_unit:
+            cmd.append("--user")
+
+        cmd.extend(
+            [
+                "--no-block",
+                "--unit",
+                unit_name,
+                "--on-active",
+                f"{reminder_delay}s",
+                "--collect",
+                "--property=Type=oneshot",
+                "--description",
+                f"Power Scheduler: {minutes_before}m reminder",
+                gapplication_path,
+                "action",
+                self._APP_ID,
+                f"show-reminder-{minutes_before}m",
+            ]
+        )
+
+        run_command(cmd, check=False)
 
     @staticmethod
     def _has_polkit_error(stderr: str) -> bool:
@@ -102,10 +155,15 @@ class SystemdService:
         self._validate_unit_name(unit_name)
 
         base_command = self._build_systemctl_base(is_user_unit)
-        timer_unit = f"{unit_name}.timer"
-        service_unit = f"{unit_name}.service"
 
-        messages = self._run_cancel_steps(base_command, timer_unit, service_unit)
+        prefixes = [
+            unit_name,
+            f"{unit_name}-reminder-10m",
+            f"{unit_name}-reminder-5m",
+        ]
+        suffixes = [".timer", ".service"]
+
+        messages = self._run_cancel_for_units(base_command, prefixes, suffixes)
 
         if messages:
             detail = " | ".join(messages)
@@ -154,25 +212,22 @@ class SystemdService:
         cmd.extend(params.command)
         return cmd
 
-    def _run_cancel_steps(
+    def _run_cancel_for_units(
         self,
         base_command: list[str],
-        timer_unit: str,
-        service_unit: str,
+        prefixes: list[str],
+        suffixes: list[str],
     ) -> list[str]:
         messages: list[str] = []
 
-        for args in (
-            [*base_command, "stop", timer_unit],
-            [*base_command, "stop", service_unit],
-            [*base_command, "reset-failed", timer_unit],
-            [*base_command, "reset-failed", service_unit],
-        ):
-            result = run_command(args, check=False)
-            if result.returncode != 0:
-                stderr = (result.stderr or "").strip()
-                if stderr and "not loaded" not in stderr.lower():
-                    messages.append(stderr)
+        for prefix in prefixes:
+            for suffix in suffixes:
+                args = [*base_command, "stop", f"{prefix}{suffix}"]
+                result = run_command(args, check=False)
+                if result.returncode != 0:
+                    stderr = (result.stderr or "").strip()
+                    if stderr and "not loaded" not in stderr.lower():
+                        messages.append(stderr)
 
         return messages
 

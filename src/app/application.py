@@ -5,6 +5,7 @@ from pathlib import Path
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 
 from app.config import APP_ID
+from domain.enums import TimeUnit
 from domain.models import ScheduledJobResult, ScheduleRequest
 from services.capability_service import CapabilityService
 from services.notification_service import NotificationService
@@ -36,6 +37,14 @@ class PowerSchedulerApplication(Adw.Application):
         cancel_action = Gio.SimpleAction.new("cancel-scheduled", None)
         cancel_action.connect("activate", self._on_cancel_scheduled_action)
         self.add_action(cancel_action)
+
+        show_reminder_10m = Gio.SimpleAction.new("show-reminder-10m", None)
+        show_reminder_10m.connect("activate", self._on_show_reminder_10m)
+        self.add_action(show_reminder_10m)
+
+        show_reminder_5m = Gio.SimpleAction.new("show-reminder-5m", None)
+        show_reminder_5m.connect("activate", self._on_show_reminder_5m)
+        self.add_action(show_reminder_5m)
 
     def _on_activate(self, _app) -> None:
         self._ensure_css_loaded()
@@ -104,6 +113,34 @@ class PowerSchedulerApplication(Adw.Application):
     def show_reminder_notification(
         self, minutes_left: int, request: ScheduleRequest
     ) -> None:
+        if self.notification_service is not None:
+            self.notification_service.send_reminder_notification(minutes_left, request)
+
+    def _on_show_reminder_10m(
+        self,
+        _action: Gio.SimpleAction,
+        _parameter: GLib.Variant | None,
+    ) -> None:
+        self._send_reminder(10)
+
+    def _on_show_reminder_5m(
+        self,
+        _action: Gio.SimpleAction,
+        _parameter: GLib.Variant | None,
+    ) -> None:
+        self._send_reminder(5)
+
+    def _send_reminder(self, minutes_left: int) -> None:
+        job = self._controller.active_job
+        if job is None or job.action is None:
+            return
+
+        request = ScheduleRequest(
+            action=job.action,
+            amount=job.amount or 0,
+            unit=job.unit or TimeUnit.SECONDS,
+        )
+
         if self.notification_service is not None:
             self.notification_service.send_reminder_notification(minutes_left, request)
 

@@ -39,7 +39,6 @@ from app.application import PowerSchedulerApplication
 from repositories.scheduled_job_repository import ScheduledJobRepository
 from services.capability_service import CapabilityService
 from services.notification_service import NotificationService
-from services.reminder_service import ReminderService
 from services.schedule_controller import ScheduleController
 from services.scheduler_service import SchedulerService
 from services.session_service import SessionService
@@ -62,18 +61,11 @@ def main() -> int:
         scheduled_job_repository=scheduled_job_repository,
     )
 
-    reminder_service = ReminderService()
-
     app = PowerSchedulerApplication(
         controller=ScheduleController(
             scheduler_service=scheduler_service,
-            reminder_service=reminder_service,
         ),
         capability_service=capability_service,
-    )
-
-    reminder_service.set_notify_callback(
-        lambda mins, req: app.show_reminder_notification(mins, req)
     )
 
     notification_service = NotificationService(app)
