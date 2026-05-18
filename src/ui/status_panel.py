@@ -21,12 +21,17 @@ class StatusPanel(Gtk.Box):
         self._build()
 
     def _build(self) -> None:
-        summary_frame = Gtk.Frame()
-        summary_frame.add_css_class("card")
-        summary_frame.add_css_class("status-card")
-        self.append(summary_frame)
+        self.append(self._build_summary_card())
+        self.append(self._build_status_card())
+        self.set_status_content("Choose an action and a delay, then schedule it.", "")
+        self.append(self._build_hints_card())
 
-        summary_box = Gtk.Box(
+    def _build_summary_card(self) -> Gtk.Frame:
+        frame = Gtk.Frame()
+        frame.add_css_class("card")
+        frame.add_css_class("status-card")
+
+        box = Gtk.Box(
             orientation=Gtk.Orientation.VERTICAL,
             spacing=8,
             margin_top=14,
@@ -34,25 +39,27 @@ class StatusPanel(Gtk.Box):
             margin_start=14,
             margin_end=14,
         )
-        summary_frame.set_child(summary_box)
+        frame.set_child(box)
 
-        summary_title = Gtk.Label()
-        summary_title.set_markup("<span weight='bold'>Summary</span>")
-        summary_title.set_halign(Gtk.Align.START)
-        summary_title.set_xalign(0.0)
-        summary_box.append(summary_title)
+        title = Gtk.Label()
+        title.set_markup("<span weight='bold'>Summary</span>")
+        title.set_halign(Gtk.Align.START)
+        title.set_xalign(0.0)
+        box.append(title)
 
         self._summary_label.set_wrap(True)
         self._summary_label.set_halign(Gtk.Align.START)
         self._summary_label.set_xalign(0.0)
-        summary_box.append(self._summary_label)
+        box.append(self._summary_label)
 
-        status_frame = Gtk.Frame()
-        status_frame.add_css_class("card")
-        status_frame.add_css_class("status-card")
-        self.append(status_frame)
+        return frame
 
-        status_outer_box = Gtk.Box(
+    def _build_status_card(self) -> Gtk.Frame:
+        frame = Gtk.Frame()
+        frame.add_css_class("card")
+        frame.add_css_class("status-card")
+
+        outer_box = Gtk.Box(
             orientation=Gtk.Orientation.VERTICAL,
             spacing=8,
             margin_top=14,
@@ -60,21 +67,21 @@ class StatusPanel(Gtk.Box):
             margin_start=14,
             margin_end=14,
         )
-        status_frame.set_child(status_outer_box)
+        frame.set_child(outer_box)
 
-        status_title = Gtk.Label()
-        status_title.set_markup("<span weight='bold'>Status</span>")
-        status_title.set_halign(Gtk.Align.START)
-        status_title.set_xalign(0.0)
-        status_outer_box.append(status_title)
+        title = Gtk.Label()
+        title.set_markup("<span weight='bold'>Status</span>")
+        title.set_halign(Gtk.Align.START)
+        title.set_xalign(0.0)
+        outer_box.append(title)
 
-        status_scroll = Gtk.ScrolledWindow()
-        status_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
-        status_scroll.set_min_content_height(120)
-        status_scroll.set_max_content_height(180)
-        status_scroll.set_propagate_natural_height(False)
-        status_scroll.set_has_frame(False)
-        status_outer_box.append(status_scroll)
+        scroll = Gtk.ScrolledWindow()
+        scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        scroll.set_min_content_height(120)
+        scroll.set_max_content_height(180)
+        scroll.set_propagate_natural_height(False)
+        scroll.set_has_frame(False)
+        outer_box.append(scroll)
 
         self._status_text_view.set_editable(False)
         self._status_text_view.set_cursor_visible(False)
@@ -84,16 +91,16 @@ class StatusPanel(Gtk.Box):
         self._status_text_view.set_top_margin(0)
         self._status_text_view.set_bottom_margin(0)
         self._status_text_view.add_css_class("dim-label")
-        status_scroll.set_child(self._status_text_view)
+        scroll.set_child(self._status_text_view)
 
-        self.set_status_content("Choose an action and a delay, then schedule it.", "")
+        return frame
 
-        hints_frame = Gtk.Frame()
-        hints_frame.add_css_class("card")
-        hints_frame.add_css_class("status-card")
-        self.append(hints_frame)
+    def _build_hints_card(self) -> Gtk.Frame:
+        frame = Gtk.Frame()
+        frame.add_css_class("card")
+        frame.add_css_class("status-card")
 
-        hints_box = Gtk.Box(
+        box = Gtk.Box(
             orientation=Gtk.Orientation.VERTICAL,
             spacing=6,
             margin_top=14,
@@ -101,13 +108,13 @@ class StatusPanel(Gtk.Box):
             margin_start=14,
             margin_end=14,
         )
-        hints_frame.set_child(hints_box)
+        frame.set_child(box)
 
-        hints_title = Gtk.Label()
-        hints_title.set_markup("<span weight='bold'>Notes</span>")
-        hints_title.set_halign(Gtk.Align.START)
-        hints_title.set_xalign(0.0)
-        hints_box.append(hints_title)
+        title = Gtk.Label()
+        title.set_markup("<span weight='bold'>Notes</span>")
+        title.set_halign(Gtk.Align.START)
+        title.set_xalign(0.0)
+        box.append(title)
 
         hints_text = Gtk.Label(
             label=(
@@ -119,7 +126,9 @@ class StatusPanel(Gtk.Box):
         hints_text.set_halign(Gtk.Align.START)
         hints_text.set_xalign(0.0)
         hints_text.add_css_class("dim-label")
-        hints_box.append(hints_text)
+        box.append(hints_text)
+
+        return frame
 
     def set_summary(self, text: str) -> None:
         self._summary_label.set_text(text)

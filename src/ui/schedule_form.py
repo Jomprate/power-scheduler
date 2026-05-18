@@ -65,31 +65,52 @@ class ScheduleForm(Gtk.Box):
         description.add_css_class("dim-label")
         header.append(description)
 
-        action_section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-        self.append(action_section)
+        self.append(self._build_action_section())
+        self.append(self._build_time_section())
+        self.append(self._build_presets_section())
+
+        actions_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        self.append(actions_box)
+
+        self.schedule_button = Gtk.Button(label="Schedule")
+        self.schedule_button.add_css_class("suggested-action")
+        self.schedule_button.add_css_class("primary-button")
+        self.schedule_button.set_hexpand(True)
+        actions_box.append(self.schedule_button)
+
+        self.cancel_button = Gtk.Button(label="Cancel scheduled action")
+        self.cancel_button.add_css_class("primary-button")
+        self.cancel_button.set_hexpand(True)
+        self.cancel_button.set_sensitive(False)
+        actions_box.append(self.cancel_button)
+
+    def _build_action_section(self) -> Gtk.Box:
+        section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
 
         action_label = Gtk.Label(label="Action")
         action_label.set_halign(Gtk.Align.START)
         action_label.set_xalign(0.0)
         action_label.add_css_class("section-label")
-        action_section.append(action_label)
+        section.append(action_label)
 
         self.action_dropdown = Gtk.DropDown()
         self.action_dropdown.set_selected(0)
         self.action_dropdown.add_css_class("input-control")
-        action_section.append(self.action_dropdown)
+        section.append(self.action_dropdown)
 
-        time_section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-        self.append(time_section)
+        return section
+
+    def _build_time_section(self) -> Gtk.Box:
+        section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
 
         time_label = Gtk.Label(label="Delay")
         time_label.set_halign(Gtk.Align.START)
         time_label.set_xalign(0.0)
         time_label.add_css_class("section-label")
-        time_section.append(time_label)
+        section.append(time_label)
 
         time_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        time_section.append(time_row)
+        section.append(time_row)
 
         self.amount_spin = Gtk.SpinButton.new_with_range(1, 999999, 1)
         self.amount_spin.set_value(10)
@@ -105,14 +126,16 @@ class ScheduleForm(Gtk.Box):
         self.unit_dropdown.add_css_class("input-control")
         time_row.append(self.unit_dropdown)
 
-        presets_section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        self.append(presets_section)
+        return section
+
+    def _build_presets_section(self) -> Gtk.Box:
+        section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
 
         presets_label = Gtk.Label(label="Quick presets")
         presets_label.set_halign(Gtk.Align.START)
         presets_label.set_xalign(0.0)
         presets_label.add_css_class("section-label")
-        presets_section.append(presets_label)
+        section.append(presets_label)
 
         presets_wrap = Gtk.FlowBox()
         presets_wrap.set_selection_mode(Gtk.SelectionMode.NONE)
@@ -120,7 +143,7 @@ class ScheduleForm(Gtk.Box):
         presets_wrap.set_row_spacing(6)
         presets_wrap.set_column_spacing(6)
         presets_wrap.add_css_class("presets-wrap")
-        presets_section.append(presets_wrap)
+        section.append(presets_wrap)
 
         preset_values = [
             ("10s", 10, TimeUnit.SECONDS),
@@ -137,20 +160,7 @@ class ScheduleForm(Gtk.Box):
             presets_wrap.insert(button, -1)
             self._connect_preset(button, amount, unit)
 
-        actions_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        self.append(actions_box)
-
-        self.schedule_button = Gtk.Button(label="Schedule")
-        self.schedule_button.add_css_class("suggested-action")
-        self.schedule_button.add_css_class("primary-button")
-        self.schedule_button.set_hexpand(True)
-        actions_box.append(self.schedule_button)
-
-        self.cancel_button = Gtk.Button(label="Cancel scheduled action")
-        self.cancel_button.add_css_class("primary-button")
-        self.cancel_button.set_hexpand(True)
-        self.cancel_button.set_sensitive(False)
-        actions_box.append(self.cancel_button)
+        return section
 
     def _connect_preset(self, button: Gtk.Button, amount: int, unit: TimeUnit) -> None:
         button.connect("clicked", self._on_preset_clicked, amount, unit)

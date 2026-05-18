@@ -166,6 +166,10 @@ class PaletteService:
         return None
 
     @staticmethod
+    def _is_comment_or_blank(stripped: str) -> bool:
+        return not stripped or stripped.startswith("/*") or stripped.startswith("//")
+
+    @staticmethod
     def _extract_define_color_rules(raw: str) -> list[str]:
         if not raw:
             return []
@@ -173,7 +177,7 @@ class PaletteService:
         lines: list[str] = []
         for line in raw.splitlines():
             stripped = line.strip()
-            if not stripped or stripped.startswith("/*") or stripped.startswith("//"):
+            if PaletteService._is_comment_or_blank(stripped):
                 continue
             if stripped.startswith("@define-color "):
                 lines.append(stripped)

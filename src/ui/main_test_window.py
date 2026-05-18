@@ -13,24 +13,16 @@ from gi.repository import Adw, Gtk
 class TestWindow(Adw.ApplicationWindow):
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
+        self._build_ui()
 
+    def _build_ui(self) -> None:
         self.set_title("Power Scheduler Theme Test")
         self.set_default_size(560, 260)
         self.set_resizable(True)
 
         toolbar_view = Adw.ToolbarView()
         self.set_content(toolbar_view)
-
-        header_bar = Adw.HeaderBar()
-        header_bar.set_show_start_title_buttons(True)
-        header_bar.set_show_end_title_buttons(True)
-        header_bar.set_title_widget(
-            Adw.WindowTitle(
-                title="Theme Test",
-                subtitle="Minimal libadwaita runtime check",
-            )
-        )
-        toolbar_view.add_top_bar(header_bar)
+        toolbar_view.add_top_bar(self._build_header_bar())
 
         clamp = Adw.Clamp()
         clamp.set_maximum_size(760)
@@ -81,8 +73,22 @@ class TestWindow(Adw.ApplicationWindow):
         entry.set_placeholder_text("Sample entry")
         page_box.append(entry)
 
+        page_box.append(self._build_status_frame())
+
+    def _build_header_bar(self) -> Adw.HeaderBar:
+        header_bar = Adw.HeaderBar()
+        header_bar.set_show_start_title_buttons(True)
+        header_bar.set_show_end_title_buttons(True)
+        header_bar.set_title_widget(
+            Adw.WindowTitle(
+                title="Theme Test",
+                subtitle="Minimal libadwaita runtime check",
+            )
+        )
+        return header_bar
+
+    def _build_status_frame(self) -> Gtk.Frame:
         frame = Gtk.Frame()
-        page_box.append(frame)
 
         frame_box = Gtk.Box(
             orientation=Gtk.Orientation.VERTICAL,
@@ -99,6 +105,8 @@ class TestWindow(Adw.ApplicationWindow):
         self.status_label.set_halign(Gtk.Align.START)
         self.status_label.set_xalign(0.0)
         frame_box.append(self.status_label)
+
+        return frame
 
     def update_theme_status(self, is_dark: bool, reason: str) -> None:
         self.status_label.set_text(f"reason={reason} | dark={is_dark}")
