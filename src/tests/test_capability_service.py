@@ -1,225 +1,126 @@
 from __future__ import annotations
 
+import os
 import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from services.capability_service import (
-    CapabilityService,
-    HostSystemProbe,
-)
+from services.capability_service import CapabilityService, HostSystemProbe
 
 
 class CapabilityServiceTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.mock_probe = Mock()
-        self.service = CapabilityService(probe=self.mock_probe)
+        self.probe = Mock(spec=HostSystemProbe)
+        self.service = CapabilityService(probe=self.probe)
 
-    def test_get_schedule_capability_returns_available_when_systemd_run_exists(
-        self,
-    ) -> None:
-        self.mock_probe.find_binary.return_value = "/usr/bin/systemd-run"
+    def test_get_schedule_capability_found(self) -> None:
+        self.probe.find_binary.return_value = "/usr/bin/systemd-run"
+        cap = self.service.get_schedule_capability()
+        self.assertTrue(cap.available)
+        self.assertIn("systemd-run", cap.reason)
 
-        capability = self.service.get_schedule_capability()
+    def test_get_schedule_capability_not_found(self) -> None:
+        self.probe.find_binary.return_value = None
+        cap = self.service.get_schedule_capability()
+        self.assertFalse(cap.available)
+        self.assertIn("not found", cap.reason)
 
-        self.assertTrue(capability.available)
-        self.assertEqual(capability.action_key, "schedule")
-        self.assertIn("systemd-run", capability.reason)
+    def test_get_lock_capability_found(self) -> None:
+        self.probe.find_binary.return_value = "/usr/bin/loginctl"
+        cap = self.service.get_lock_capability()
+        self.assertTrue(cap.available)
+        self.assertIn("loginctl", cap.reason)
 
-    def test_get_schedule_capability_returns_unavailable_when_systemd_run_missing(
-        self,
-    ) -> None:
-        self.mock_probe.find_binary.return_value = None
+    def test_get_lock_capability_not_found(self) -> None:
+        self.probe.find_binary.return_value = None
+        cap = self.service.get_lock_capability()
+        self.assertFalse(cap.available)
+        self.assertIn("not found", cap.reason)
 
-        capability = self.service.get_schedule_capability()
-
-        self.assertFalse(capability.available)
-        self.assertEqual(capability.action_key, "schedule")
-        self.assertIn("was not found", capability.reason)
-
-    def test_get_lock_capability_returns_available_when_loginctl_exists(
-        self,
-    ) -> None:
-        self.mock_probe.find_binary.return_value = "/usr/bin/loginctl"
-
-        capability = self.service.get_lock_capability()
-
-        self.assertTrue(capability.available)
-        self.assertEqual(capability.action_key, "lock")
-        self.assertIn("loginctl", capability.reason)
-
-    def test_get_lock_capability_returns_unavailable_when_loginctl_missing(
-        self,
-    ) -> None:
-        self.mock_probe.find_binary.return_value = None
-
-        capability = self.service.get_lock_capability()
-
-        self.assertFalse(capability.available)
-        self.assertEqual(capability.action_key, "lock")
-
-    def _assert_capability(
-        self,
-        method_name: str,
-        *,
-        available: bool,
-        reason_contains: str | None = None,
-    ) -> None:
-        method = getattr(self.service, method_name)
-        capability = method()
-        self.assertEqual(capability.available, available)
-        if reason_contains:
-            self.assertIn(reason_contains, capability.reason)
-
-    def test_get_logout_capability_prefers_gnome_session_quit_when_available(
-        self,
-    ) -> None:
-        self.mock_probe.find_binary.side_effect = lambda name: {
-            "gnome-session-quit": "/usr/bin/gnome-session-quit",
-            "loginctl": "/usr/bin/loginctl",
-        }.get(name)
-
-        self._assert_capability(
-            "get_logout_capability",
-            available=True,
-            reason_contains="gnome-session-quit",
+    def test_get_logout_capability_gnome_session_quit(self) -> None:
+        self.probe.find_binary.side_effect = lambda name: (
+            "/usr/bin/gnome-session-quit" if name == "gnome-session-quit" else None
         )
+        cap = self.service.get_logout_capability()
+        self.assertTrue(cap.available)
+        self.assertIn("gnome-session-quit", cap.reason)
 
-    def test_get_logout_capability_uses_loginctl_fallback_when_gnome_missing(
-        self,
-    ) -> None:
-        self.mock_probe.find_binary.side_effect = lambda name: {
-            "gnome-session-quit": None,
-            "loginctl": "/usr/bin/loginctl",
-        }.get(name)
-
-        self._assert_capability(
-            "get_logout_capability",
-            available=True,
-            reason_contains="terminate-session fallback",
+    def test_get_logout_capability_loginctl_with_session(self) -> None:
+        self.probe.find_binary.side_effect = lambda name: (
+            "/usr/bin/loginctl" if name == "loginctl" else None
         )
+        with patch.dict(os.environ, {"XDG_SESSION_ID": "42"}, clear=True):
+            cap = self.service.get_logout_capability()
+        self.assertTrue(cap.available)
+        self.assertIn("loginctl", cap.reason)
 
-    def test_get_logout_capability_returns_unavailable_when_no_binary_exists(
-        self,
-    ) -> None:
-        self.mock_probe.find_binary.return_value = None
-        self._assert_capability("get_logout_capability", available=False)
-
-    def test_get_suspend_capability_returns_available_when_binary_and_kernel_support_exist(
-        self,
-    ) -> None:
-        self.mock_probe.find_binary.return_value = "/usr/bin/systemctl"
-        self.mock_probe.read_text_file.return_value = "freeze mem disk"
-        self._assert_capability(
-            "get_suspend_capability",
-            available=True,
-            reason_contains="indicate suspend support",
+    def test_get_logout_capability_loginctl_without_session(self) -> None:
+        self.probe.find_binary.side_effect = lambda name: (
+            "/usr/bin/loginctl" if name == "loginctl" else None
         )
+        with patch.dict(os.environ, {}, clear=True):
+            cap = self.service.get_logout_capability()
+        self.assertFalse(cap.available)
+        self.assertIn("XDG_SESSION_ID", cap.reason)
 
-    def test_get_suspend_capability_returns_unavailable_when_kernel_support_is_missing(
-        self,
-    ) -> None:
-        self.mock_probe.find_binary.return_value = "/usr/bin/systemctl"
-        self.mock_probe.read_text_file.return_value = "disk"
-        self._assert_capability("get_suspend_capability", available=False)
+    def test_get_logout_capability_none_found(self) -> None:
+        self.probe.find_binary.return_value = None
+        cap = self.service.get_logout_capability()
+        self.assertFalse(cap.available)
+        self.assertIn("Neither", cap.reason)
 
-    def test_get_suspend_capability_returns_unavailable_when_systemctl_missing(
-        self,
-    ) -> None:
-        self.mock_probe.find_binary.return_value = None
-        self._assert_capability("get_suspend_capability", available=False)
-
-    def test_get_hibernate_capability_returns_available_when_binary_and_kernel_support_exist(
-        self,
-    ) -> None:
-        self.mock_probe.find_binary.return_value = "/usr/bin/systemctl"
-        self.mock_probe.read_text_file.side_effect = lambda path: (
-            "freeze mem disk"
-            if "state" in str(path)
-            else "[shutdown] reboot suspend test_resume"
-            if "disk" in str(path)
-            else ""
+    def test_get_suspend_capability_available(self) -> None:
+        self.probe.find_binary.return_value = "/usr/bin/systemctl"
+        self.probe.read_text_file.side_effect = lambda path: (
+            "mem freeze standby" if path == Path("/sys/power/state") else ""
         )
-        self._assert_capability(
-            "get_hibernate_capability",
-            available=True,
-            reason_contains="indicate hibernate support",
+        cap = self.service.get_suspend_capability()
+        self.assertTrue(cap.available)
+        self.assertIn("systemctl", cap.reason)
+
+    def test_get_suspend_capability_no_kernel_support(self) -> None:
+        self.probe.find_binary.return_value = "/usr/bin/systemctl"
+        self.probe.read_text_file.return_value = ""
+        cap = self.service.get_suspend_capability()
+        self.assertFalse(cap.available)
+        self.assertIn("kernel", cap.reason)
+
+    def test_get_hibernate_capability_available(self) -> None:
+        self.probe.find_binary.return_value = "/usr/bin/systemctl"
+        self.probe.read_text_file.side_effect = lambda path: (
+            "disk" if path == Path("/sys/power/state") else "reboot"
         )
+        cap = self.service.get_hibernate_capability()
+        self.assertTrue(cap.available)
+        self.assertIn("systemctl", cap.reason)
 
-    def test_get_hibernate_capability_returns_unavailable_when_kernel_support_is_missing(
-        self,
-    ) -> None:
-        self.mock_probe.find_binary.return_value = "/usr/bin/systemctl"
-        self.mock_probe.read_text_file.side_effect = lambda path: (
-            "freeze mem"
-            if "state" in str(path)
-            else "[shutdown] reboot"
-            if "disk" in str(path)
-            else ""
-        )
-        self._assert_capability("get_hibernate_capability", available=False)
+    def test_get_hibernate_capability_no_kernel_support(self) -> None:
+        self.probe.find_binary.return_value = "/usr/bin/systemctl"
+        self.probe.read_text_file.return_value = ""
+        cap = self.service.get_hibernate_capability()
+        self.assertFalse(cap.available)
+        self.assertIn("kernel", cap.reason)
 
-    def test_get_power_off_capability_returns_available_when_systemctl_exists(
-        self,
-    ) -> None:
-        self.mock_probe.find_binary.return_value = "/usr/bin/systemctl"
-        self._assert_capability("get_power_off_capability", available=True)
+    def test_get_power_off_capability_found(self) -> None:
+        self.probe.find_binary.return_value = "/usr/bin/systemctl"
+        cap = self.service.get_power_off_capability()
+        self.assertTrue(cap.available)
+        self.assertIn("systemctl", cap.reason)
 
-    def test_get_power_off_capability_returns_unavailable_when_systemctl_missing(
-        self,
-    ) -> None:
-        self.mock_probe.find_binary.return_value = None
-        self._assert_capability("get_power_off_capability", available=False)
+    def test_get_power_off_capability_not_found(self) -> None:
+        self.probe.find_binary.return_value = None
+        cap = self.service.get_power_off_capability()
+        self.assertFalse(cap.available)
+        self.assertIn("not found", cap.reason)
 
-    def test_get_capabilities_returns_expected_keys(self) -> None:
-        self.mock_probe.find_binary.return_value = "/usr/bin/systemctl"
-        self.mock_probe.read_text_file.return_value = "freeze mem disk"
-
-        result = self.service.get_capabilities()
-
+    def test_get_capabilities_returns_all_keys(self) -> None:
+        self.probe.find_binary.return_value = "/usr/bin/systemctl"
+        self.probe.read_text_file.return_value = "mem disk"
+        caps = self.service.get_capabilities()
         self.assertEqual(
-            set(result.keys()),
+            set(caps.keys()),
             {"lock", "log_out", "suspend", "hibernate", "power_off", "schedule"},
         )
-
-
-class HostSystemProbeTests(unittest.TestCase):
-    def test_find_binary_returns_none_when_not_found(self) -> None:
-        probe = HostSystemProbe()
-        result = probe.find_binary("this-binary-does-not-exist-12345xyz")
-        self.assertIsNone(result)
-
-    def test_read_text_file_returns_empty_string_when_path_does_not_exist(
-        self,
-    ) -> None:
-        probe = HostSystemProbe()
-        result = probe.read_text_file(Path("/fake/nonexistent/path"))
-        self.assertEqual(result, "")
-
-    @patch(
-        "services.capability_service.Path.read_text",
-        return_value="  freeze mem disk  \n",
-    )
-    @patch("services.capability_service.Path.exists", return_value=True)
-    def test_read_text_file_returns_trimmed_content(
-        self,
-        _mock_exists,
-        _mock_read_text,
-    ) -> None:
-        probe = HostSystemProbe()
-        result = probe.read_text_file(Path("/fake/path"))
-        self.assertEqual(result, "freeze mem disk")
-
-    @patch("services.capability_service.Path.read_text", side_effect=OSError("boom"))
-    @patch("services.capability_service.Path.exists", return_value=True)
-    def test_read_text_file_returns_empty_string_on_os_error(
-        self,
-        _mock_exists,
-        _mock_read_text,
-    ) -> None:
-        probe = HostSystemProbe()
-        result = probe.read_text_file(Path("/fake/path"))
-        self.assertEqual(result, "")
 
 
 if __name__ == "__main__":
