@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Power Scheduler
+Comment=Schedule power actions on Linux without keeping the app open.
+Exec=/home/ssdevopl/Documentos/Linux_Developments/power-scheduler/run.sh
+Icon=/home/ssdevopl/Documentos/Linux_Developments/power-scheduler/assets/icons/app-icon.svg
+Type=Application
+Terminal=false
+Categories=System;Settings;

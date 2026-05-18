@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 from types import SimpleNamespace
-from unittest.mock import call, patch
+from unittest.mock import Mock, call, patch
 
 from services.systemd_service import SystemdService
 
@@ -369,6 +369,8 @@ class SystemdServiceTests(unittest.TestCase):
         _mock_which,
         mock_run_command,
     ) -> None:
+        mock_run_command.return_value = Mock(returncode=0, stderr="")
+
         result = self.service.cancel(
             unit_name="power-scheduler-lock-test",
             is_user_unit=True,
@@ -394,6 +396,8 @@ class SystemdServiceTests(unittest.TestCase):
         _mock_which,
         mock_run_command,
     ) -> None:
+        mock_run_command.return_value = Mock(returncode=0, stderr="")
+
         result = self.service.cancel(
             unit_name="power-scheduler-suspend-test",
             is_user_unit=False,

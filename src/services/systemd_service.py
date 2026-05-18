@@ -86,10 +86,30 @@ class SystemdService:
         timer_unit = f"{unit_name}.timer"
         service_unit = f"{unit_name}.service"
 
-        run_command([*base_command, "stop", timer_unit], check=False)
-        run_command([*base_command, "stop", service_unit], check=False)
-        run_command([*base_command, "reset-failed", timer_unit], check=False)
-        run_command([*base_command, "reset-failed", service_unit], check=False)
+        any_failed = False
+        messages: list[str] = []
+
+        for args in (
+            [*base_command, "stop", timer_unit],
+            [*base_command, "stop", service_unit],
+            [*base_command, "reset-failed", timer_unit],
+            [*base_command, "reset-failed", service_unit],
+        ):
+            result = run_command(args, check=False)
+            if result.returncode != 0:
+                any_failed = True
+                stderr = (result.stderr or "").strip()
+                if stderr:
+                    messages.append(stderr)
+
+        if any_failed and messages:
+            detail = " | ".join(messages)
+            return SystemdCancelResult(
+                success=False,
+                message=f"Cancellation had issues for unit: {unit_name} — {detail}",
+                unit_name=unit_name,
+                is_user_unit=is_user_unit,
+            )
 
         return SystemdCancelResult(
             success=True,

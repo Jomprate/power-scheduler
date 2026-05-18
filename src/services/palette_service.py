@@ -21,6 +21,20 @@ class PaletteService:
         self._ensure_monitors()
         self._reload()
 
+    def destroy(self) -> None:
+        if self._reload_timeout_id is not None:
+            GLib.source_remove(self._reload_timeout_id)
+            self._reload_timeout_id = None
+
+        if self._style_manager_handler_id is not None:
+            self._style_manager.disconnect(self._style_manager_handler_id)
+            self._style_manager_handler_id = None
+
+        for monitor in self._file_monitors:
+            monitor.cancel()
+        self._file_monitors.clear()
+        self._monitors_started = False
+
     def _ensure_provider(self) -> None:
         if self._provider is not None:
             return

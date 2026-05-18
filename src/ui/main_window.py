@@ -5,7 +5,7 @@ import gi
 gi.require_version("Gtk", "4.0")  # type: ignore[attr-defined]
 gi.require_version("Adw", "1")  # type: ignore[attr-defined]
 
-from gi.repository import Adw, GLib, Gtk
+from gi.repository import Adw, Gtk
 
 from app.config import APP_NAME
 from domain.models import ScheduledJobResult, ScheduleRequest
@@ -171,11 +171,6 @@ class MainWindow(Adw.ApplicationWindow):
     def _set_schedule_controls_enabled(self, enabled: bool) -> None:
         self._form.set_enabled(enabled)
 
-    def _flush_ui(self) -> None:
-        context = GLib.MainContext.default()
-        while context.pending():
-            context.iteration(False)
-
     def _on_schedule_clicked(self, _button: Gtk.Button) -> None:
         try:
             request = ScheduleRequest(
@@ -186,13 +181,12 @@ class MainWindow(Adw.ApplicationWindow):
 
             self._status_panel.set_status_content("Scheduling action...", "")
             self._set_schedule_controls_enabled(False)
-            self._flush_ui()
 
             result = self._controller.schedule(request)
             self._apply_schedule_result(result)
             self._notify_schedule_created(request, result)
 
-        except Exception as exc:
+        except (ValueError, RuntimeError) as exc:
             self._status_panel.set_status_content(f"Error: {exc}", "")
             self._notify_error(f"Error: {exc}")
 

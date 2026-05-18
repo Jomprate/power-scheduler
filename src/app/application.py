@@ -22,6 +22,7 @@ class PowerSchedulerApplication(Adw.Application):
     ) -> None:
         super().__init__(application_id=APP_ID)
         self.connect("activate", self._on_activate)
+        self.connect("shutdown", self._on_shutdown)
 
         self._controller = controller
         self.notification_service: NotificationService | None = None
@@ -118,3 +119,6 @@ class PowerSchedulerApplication(Adw.Application):
             self.notification_service.send_cancellation_notification(result.message)
         else:
             self.notification_service.send_error_notification(result.message)
+
+    def _on_shutdown(self, _app: Adw.Application) -> None:
+        self._palette_service.destroy()

@@ -170,12 +170,16 @@ class ScheduleForm(Gtk.Box):
 
     def get_selected_action(self) -> PowerAction:
         index = self.action_dropdown.get_selected()
+        if not self._action_items:
+            raise RuntimeError("No actions are available on this system.")
         if 0 <= index < len(self._action_items):
             return self._action_items[index][1]
         return self._action_items[0][1]
 
     def get_selected_action_label(self) -> str:
         index = self.action_dropdown.get_selected()
+        if not self._action_items:
+            raise RuntimeError("No actions are available on this system.")
         if 0 <= index < len(self._action_items):
             return self._action_items[index][0]
         return self._action_items[0][0]

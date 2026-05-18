@@ -108,6 +108,24 @@
         "reveal": "silent",
         "panel": "shared"
       }
+    },
+    {
+      "label": "Run App (host)",
+      "type": "shell",
+      "command": "flatpak-spawn",
+      "args": [
+        "--host",
+        "bash",
+        "-c",
+        "cd ${workspaceFolder} && PYTHONPATH=src python3 src/main.py"
+      ],
+      "group": "none",
+      "problemMatcher": [],
+      "presentation": {
+        "group": "app",
+        "reveal": "always",
+        "panel": "dedicated"
+      }
     }
   ]
 }
