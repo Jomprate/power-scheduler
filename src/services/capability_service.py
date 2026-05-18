@@ -4,7 +4,7 @@ import shutil
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
+from typing import Final, Protocol
 
 
 class SystemProbe(Protocol):
@@ -31,6 +31,14 @@ class ActionCapability:
     action_key: str
     available: bool
     reason: str
+
+
+@dataclass(frozen=True, slots=True)
+class _KernelCapabilityConfig:
+    action_key: str
+    kernel_check: Callable[[], bool]
+    available_template: str
+    unavailable_template: str
 
 
 class CapabilityService:
@@ -127,32 +135,46 @@ class CapabilityService:
 
         return bool(os.environ.get("XDG_SESSION_ID", "").strip())
 
-    def get_suspend_capability(self) -> ActionCapability:
-        return self._make_systemctl_kernel_capability(
-            "suspend",
-            self._kernel_supports_suspend,
-            available_reason=(
+    _KERNEL_CAP_CONFIGS: Final[dict[str, _KernelCapabilityConfig]] = {
+        "suspend": _KernelCapabilityConfig(
+            action_key="suspend",
+            kernel_check=lambda self: self._kernel_supports_suspend(),
+            available_template=(
                 "Resolved systemctl at {path} and kernel sleep states "
                 "indicate suspend support."
             ),
-            unavailable_reason=(
+            unavailable_template=(
                 "systemctl is available, but kernel sleep states do not "
                 "indicate suspend support."
             ),
-        )
-
-    def get_hibernate_capability(self) -> ActionCapability:
-        return self._make_systemctl_kernel_capability(
-            "hibernate",
-            self._kernel_supports_hibernate,
-            available_reason=(
+        ),
+        "hibernate": _KernelCapabilityConfig(
+            action_key="hibernate",
+            kernel_check=lambda self: self._kernel_supports_hibernate(),
+            available_template=(
                 "Resolved systemctl at {path} and kernel power interfaces "
                 "indicate hibernate support."
             ),
-            unavailable_reason=(
+            unavailable_template=(
                 "systemctl is available, but kernel power interfaces do not "
                 "indicate hibernate support."
             ),
+        ),
+    }
+
+    def get_suspend_capability(self) -> ActionCapability:
+        return self._get_kernel_power_capability("suspend")
+
+    def get_hibernate_capability(self) -> ActionCapability:
+        return self._get_kernel_power_capability("hibernate")
+
+    def _get_kernel_power_capability(self, action_key: str) -> ActionCapability:
+        config = self._KERNEL_CAP_CONFIGS[action_key]
+        return self._make_systemctl_kernel_capability(
+            config.action_key,
+            lambda: config.kernel_check(self),
+            available_reason=config.available_template,
+            unavailable_reason=config.unavailable_template,
         )
 
     def get_power_off_capability(self) -> ActionCapability:
