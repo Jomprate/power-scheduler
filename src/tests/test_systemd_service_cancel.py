@@ -64,6 +64,30 @@ class SystemdServiceCancelTests(unittest.TestCase):
         self.assertFalse(result.success)
         self.assertIn("Permission denied", result.message)
 
+    @patch("services.systemd_service.run_command")
+    def test_cancel_system_unit_reminders_use_user_scope(self, mock_run) -> None:
+        mock_run.return_value = Mock(returncode=0, stdout="", stderr="")
+
+        self.service.cancel(
+            unit_name="power-scheduler-suspend-123",
+            is_user_unit=False,
+        )
+
+        calls_without_user = 0
+        calls_with_user = 0
+
+        for call in mock_run.call_args_list:
+            args = call[0][0]
+            if "--user" in args:
+                calls_with_user += 1
+            else:
+                calls_without_user += 1
+
+        # Main unit: 2 suffixes (timer + service) without --user
+        self.assertEqual(calls_without_user, 2)
+        # Reminders: 2 prefixes × 2 suffixes with --user
+        self.assertEqual(calls_with_user, 4)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

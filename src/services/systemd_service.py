@@ -118,8 +118,9 @@ class SystemdService:
 
         cmd: list[str] = [systemd_run_path]
 
-        if params.is_user_unit:
-            cmd.append("--user")
+        # Reminders are always user units so they can access the session D-Bus
+        # and show desktop notifications.
+        cmd.append("--user")
 
         cmd.extend(
             [
@@ -128,6 +129,7 @@ class SystemdService:
                 unit_name,
                 "--on-active",
                 f"{reminder_delay}s",
+                f"--timer-property=AccuracySec={self.TIMER_ACCURACY}",
                 "--collect",
                 "--property=Type=oneshot",
                 "--description",
@@ -154,16 +156,23 @@ class SystemdService:
     ) -> SystemdCancelResult:
         self._validate_unit_name(unit_name)
 
-        base_command = self._build_systemctl_base(is_user_unit)
+        suffixes = [".timer", ".service"]
 
-        prefixes = [
-            unit_name,
+        # Cancel the main unit using its original scope
+        base_command = self._build_systemctl_base(is_user_unit)
+        main_prefixes = [unit_name]
+        messages = self._run_cancel_for_units(base_command, main_prefixes, suffixes)
+
+        # Reminders are always user units; cancel them independently
+        user_base_command = self._build_systemctl_base(True)
+        reminder_prefixes = [
             f"{unit_name}-reminder-10m",
             f"{unit_name}-reminder-5m",
         ]
-        suffixes = [".timer", ".service"]
-
-        messages = self._run_cancel_for_units(base_command, prefixes, suffixes)
+        reminder_messages = self._run_cancel_for_units(
+            user_base_command, reminder_prefixes, suffixes
+        )
+        messages.extend(reminder_messages)
 
         if messages:
             detail = " | ".join(messages)
