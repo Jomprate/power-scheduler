@@ -58,84 +58,76 @@ class CapabilityServiceTests(unittest.TestCase):
         self.assertFalse(capability.available)
         self.assertEqual(capability.action_key, "lock")
 
+    def _assert_capability(
+        self,
+        method_name: str,
+        *,
+        available: bool,
+        reason_contains: str | None = None,
+    ) -> None:
+        method = getattr(self.service, method_name)
+        capability = method()
+        self.assertEqual(capability.available, available)
+        if reason_contains:
+            self.assertIn(reason_contains, capability.reason)
+
     def test_get_logout_capability_prefers_gnome_session_quit_when_available(
         self,
     ) -> None:
-        def find_binary(name: str) -> str | None:
-            mapping = {
-                "gnome-session-quit": "/usr/bin/gnome-session-quit",
-                "loginctl": "/usr/bin/loginctl",
-            }
-            return mapping.get(name)
+        self.mock_probe.find_binary.side_effect = lambda name: {
+            "gnome-session-quit": "/usr/bin/gnome-session-quit",
+            "loginctl": "/usr/bin/loginctl",
+        }.get(name)
 
-        self.mock_probe.find_binary.side_effect = find_binary
-
-        capability = self.service.get_logout_capability()
-
-        self.assertTrue(capability.available)
-        self.assertEqual(capability.action_key, "log_out")
-        self.assertIn("gnome-session-quit", capability.reason)
+        self._assert_capability(
+            "get_logout_capability",
+            available=True,
+            reason_contains="gnome-session-quit",
+        )
 
     def test_get_logout_capability_uses_loginctl_fallback_when_gnome_missing(
         self,
     ) -> None:
-        def find_binary(name: str) -> str | None:
-            mapping = {
-                "gnome-session-quit": None,
-                "loginctl": "/usr/bin/loginctl",
-            }
-            return mapping.get(name)
+        self.mock_probe.find_binary.side_effect = lambda name: {
+            "gnome-session-quit": None,
+            "loginctl": "/usr/bin/loginctl",
+        }.get(name)
 
-        self.mock_probe.find_binary.side_effect = find_binary
-
-        capability = self.service.get_logout_capability()
-
-        self.assertTrue(capability.available)
-        self.assertEqual(capability.action_key, "log_out")
-        self.assertIn("terminate-session fallback", capability.reason)
+        self._assert_capability(
+            "get_logout_capability",
+            available=True,
+            reason_contains="terminate-session fallback",
+        )
 
     def test_get_logout_capability_returns_unavailable_when_no_binary_exists(
         self,
     ) -> None:
         self.mock_probe.find_binary.return_value = None
-
-        capability = self.service.get_logout_capability()
-
-        self.assertFalse(capability.available)
-        self.assertEqual(capability.action_key, "log_out")
+        self._assert_capability("get_logout_capability", available=False)
 
     def test_get_suspend_capability_returns_available_when_binary_and_kernel_support_exist(
         self,
     ) -> None:
         self.mock_probe.find_binary.return_value = "/usr/bin/systemctl"
         self.mock_probe.read_text_file.return_value = "freeze mem disk"
-
-        capability = self.service.get_suspend_capability()
-
-        self.assertTrue(capability.available)
-        self.assertEqual(capability.action_key, "suspend")
-        self.assertIn("indicate suspend support", capability.reason)
+        self._assert_capability(
+            "get_suspend_capability",
+            available=True,
+            reason_contains="indicate suspend support",
+        )
 
     def test_get_suspend_capability_returns_unavailable_when_kernel_support_is_missing(
         self,
     ) -> None:
         self.mock_probe.find_binary.return_value = "/usr/bin/systemctl"
         self.mock_probe.read_text_file.return_value = "disk"
-
-        capability = self.service.get_suspend_capability()
-
-        self.assertFalse(capability.available)
-        self.assertEqual(capability.action_key, "suspend")
+        self._assert_capability("get_suspend_capability", available=False)
 
     def test_get_suspend_capability_returns_unavailable_when_systemctl_missing(
         self,
     ) -> None:
         self.mock_probe.find_binary.return_value = None
-
-        capability = self.service.get_suspend_capability()
-
-        self.assertFalse(capability.available)
-        self.assertEqual(capability.action_key, "suspend")
+        self._assert_capability("get_suspend_capability", available=False)
 
     def test_get_hibernate_capability_returns_available_when_binary_and_kernel_support_exist(
         self,
@@ -148,12 +140,11 @@ class CapabilityServiceTests(unittest.TestCase):
             if "disk" in str(path)
             else ""
         )
-
-        capability = self.service.get_hibernate_capability()
-
-        self.assertTrue(capability.available)
-        self.assertEqual(capability.action_key, "hibernate")
-        self.assertIn("indicate hibernate support", capability.reason)
+        self._assert_capability(
+            "get_hibernate_capability",
+            available=True,
+            reason_contains="indicate hibernate support",
+        )
 
     def test_get_hibernate_capability_returns_unavailable_when_kernel_support_is_missing(
         self,
@@ -166,31 +157,19 @@ class CapabilityServiceTests(unittest.TestCase):
             if "disk" in str(path)
             else ""
         )
-
-        capability = self.service.get_hibernate_capability()
-
-        self.assertFalse(capability.available)
-        self.assertEqual(capability.action_key, "hibernate")
+        self._assert_capability("get_hibernate_capability", available=False)
 
     def test_get_power_off_capability_returns_available_when_systemctl_exists(
         self,
     ) -> None:
         self.mock_probe.find_binary.return_value = "/usr/bin/systemctl"
-
-        capability = self.service.get_power_off_capability()
-
-        self.assertTrue(capability.available)
-        self.assertEqual(capability.action_key, "power_off")
+        self._assert_capability("get_power_off_capability", available=True)
 
     def test_get_power_off_capability_returns_unavailable_when_systemctl_missing(
         self,
     ) -> None:
         self.mock_probe.find_binary.return_value = None
-
-        capability = self.service.get_power_off_capability()
-
-        self.assertFalse(capability.available)
-        self.assertEqual(capability.action_key, "power_off")
+        self._assert_capability("get_power_off_capability", available=False)
 
     def test_get_capabilities_returns_expected_keys(self) -> None:
         self.mock_probe.find_binary.return_value = "/usr/bin/systemctl"

@@ -85,65 +85,100 @@ class ScheduledJobRecordTests(unittest.TestCase):
         self.assertIsNone(record.command)
         self.assertIsNone(record.created_at)
 
+    def _assert_from_json_raises(self, data: dict, msg: str | None = None) -> None:
+        if msg:
+            with self.assertRaisesRegex(ValueError, msg):
+                ScheduledJobRecord.from_json_dict(data)
+        else:
+            with self.assertRaises(ValueError):
+                ScheduledJobRecord.from_json_dict(data)
+
+    def _assert_from_json_command_none(self, data: dict) -> None:
+        record = ScheduledJobRecord.from_json_dict(data)
+        self.assertIsNone(record.command)
+
     def test_from_json_dict_raises_for_missing_unit_name(self) -> None:
-        with self.assertRaises(ValueError):
-            ScheduledJobRecord.from_json_dict(
-                {
-                    "unit_name": "",
-                    "is_user_unit": False,
-                    "action": "lock",
-                    "amount": 10,
-                    "unit": "seconds",
-                }
-            )
+        self._assert_from_json_raises(
+            {
+                "unit_name": "",
+                "is_user_unit": False,
+                "action": "lock",
+                "amount": 10,
+                "unit": "seconds",
+            }
+        )
 
     def test_from_json_dict_raises_for_non_positive_amount(self) -> None:
-        with self.assertRaisesRegex(ValueError, "greater than zero"):
-            ScheduledJobRecord.from_json_dict(
-                {
-                    "unit_name": "test",
-                    "is_user_unit": False,
-                    "action": "lock",
-                    "amount": 0,
-                    "unit": "seconds",
-                }
-            )
+        self._assert_from_json_raises(
+            {
+                "unit_name": "test",
+                "is_user_unit": False,
+                "action": "lock",
+                "amount": 0,
+                "unit": "seconds",
+            },
+            "greater than zero",
+        )
 
     def test_from_json_dict_raises_for_bool_amount(self) -> None:
-        with self.assertRaisesRegex(ValueError, "not a boolean"):
-            ScheduledJobRecord.from_json_dict(
-                {
-                    "unit_name": "test",
-                    "is_user_unit": False,
-                    "action": "lock",
-                    "amount": True,
-                    "unit": "seconds",
-                }
-            )
+        self._assert_from_json_raises(
+            {
+                "unit_name": "test",
+                "is_user_unit": False,
+                "action": "lock",
+                "amount": True,
+                "unit": "seconds",
+            },
+            "not a boolean",
+        )
 
     def test_from_json_dict_accepts_null_command(self) -> None:
-        data = {
-            "unit_name": "test",
-            "is_user_unit": False,
-            "action": "lock",
-            "amount": 10,
-            "unit": "seconds",
-            "command": None,
-        }
-        record = ScheduledJobRecord.from_json_dict(data)
-        self.assertIsNone(record.command)
+        self._assert_from_json_command_none(
+            {
+                "unit_name": "test",
+                "is_user_unit": False,
+                "action": "lock",
+                "amount": 10,
+                "unit": "seconds",
+                "command": None,
+            }
+        )
 
     def test_from_json_dict_accepts_empty_command_as_none(self) -> None:
-        data = {
-            "unit_name": "test",
-            "is_user_unit": False,
-            "action": "lock",
-            "amount": 10,
-            "unit": "seconds",
-            "command": "   ",
-        }
-        record = ScheduledJobRecord.from_json_dict(data)
-        self.assertIsNone(record.command)
+        self._assert_from_json_command_none(
+            {
+                "unit_name": "test",
+                "is_user_unit": False,
+                "action": "lock",
+                "amount": 10,
+                "unit": "seconds",
+                "command": "   ",
+            }
+        )
+
+    def test_from_json_dict_raises_for_unknown_action_value(self) -> None:
+        self._assert_from_json_raises(
+            {
+                "unit_name": "test",
+                "is_user_unit": False,
+                "action": "unknown_action",
+                "amount": 10,
+                "unit": "seconds",
+            }
+        )
+
+    def test_from_json_dict_ignores_extra_fields(self) -> None:
+        record = ScheduledJobRecord.from_json_dict(
+            {
+                "unit_name": "test",
+                "is_user_unit": False,
+                "action": "lock",
+                "amount": 10,
+                "unit": "seconds",
+                "extra_field": "should be ignored",
+            }
+        )
+        self.assertEqual(record.unit_name, "test")
 
 
 class ScheduledJobRepositoryTests(unittest.TestCase):
@@ -249,53 +284,33 @@ class ScheduledJobRepositoryTests(unittest.TestCase):
         payload = json.loads(raw)
         self.assertEqual(payload["created_at"], "2025-01-01T00:00:00+00:00")
 
+    def _assert_save_raises(self, record: ScheduledJobRecord, msg: str) -> None:
+        with self.assertRaisesRegex(ValueError, msg):
+            self.repo.save_current_job(record)
+
     def test_save_current_job_raises_for_empty_unit_name(self) -> None:
-        with self.assertRaisesRegex(ValueError, "unit_name cannot be empty"):
-            self.repo.save_current_job(
-                ScheduledJobRecord(
-                    unit_name="",
-                    is_user_unit=True,
-                    action=PowerAction.LOCK,
-                    amount=10,
-                    unit=TimeUnit.SECONDS,
-                )
-            )
+        self._assert_save_raises(
+            ScheduledJobRecord(
+                unit_name="",
+                is_user_unit=True,
+                action=PowerAction.LOCK,
+                amount=10,
+                unit=TimeUnit.SECONDS,
+            ),
+            "unit_name cannot be empty",
+        )
 
     def test_save_current_job_raises_for_non_positive_amount(self) -> None:
-        with self.assertRaisesRegex(ValueError, "amount must be greater than zero"):
-            self.repo.save_current_job(
-                ScheduledJobRecord(
-                    unit_name="test",
-                    is_user_unit=True,
-                    action=PowerAction.LOCK,
-                    amount=0,
-                    unit=TimeUnit.SECONDS,
-                )
-            )
-
-    def test_from_json_dict_raises_for_unknown_action_value(self) -> None:
-        with self.assertRaises(ValueError):
-            ScheduledJobRecord.from_json_dict(
-                {
-                    "unit_name": "test",
-                    "is_user_unit": False,
-                    "action": "unknown_action",
-                    "amount": 10,
-                    "unit": "seconds",
-                }
-            )
-
-    def test_from_json_dict_ignores_extra_fields(self) -> None:
-        data = {
-            "unit_name": "test",
-            "is_user_unit": False,
-            "action": "lock",
-            "amount": 10,
-            "unit": "seconds",
-            "extra_field": "should be ignored",
-        }
-        record = ScheduledJobRecord.from_json_dict(data)
-        self.assertEqual(record.unit_name, "test")
+        self._assert_save_raises(
+            ScheduledJobRecord(
+                unit_name="test",
+                is_user_unit=True,
+                action=PowerAction.LOCK,
+                amount=0,
+                unit=TimeUnit.SECONDS,
+            ),
+            "amount must be greater than zero",
+        )
 
     def test_json_file_is_valid_json(self) -> None:
         record = ScheduledJobRecord(

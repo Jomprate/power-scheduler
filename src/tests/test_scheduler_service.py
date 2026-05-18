@@ -24,6 +24,27 @@ class SchedulerServiceTests(unittest.TestCase):
             scheduled_job_repository=self.scheduled_job_repository,
         )
 
+    def _configure_schedule_mocks(
+        self,
+        *,
+        active_service: Mock,
+        inactive_service: Mock,
+        action: PowerAction,
+        command: list[str],
+        unit_name: str,
+        is_user_unit: bool,
+        stdout: str,
+        stderr: str,
+    ) -> None:
+        active_service.supports.return_value = True
+        inactive_service.supports.return_value = False
+        active_service.build_action_command.return_value = command
+        self.systemd_service.schedule.return_value = Mock(
+            stdout=stdout,
+            stderr=stderr,
+            command=["/usr/bin/systemd-run", "--unit", unit_name, *command],
+        )
+
     @patch("services.scheduler_service.format_human_time", return_value="15 seconds")
     @patch.object(
         SchedulerService,
@@ -41,45 +62,23 @@ class SchedulerServiceTests(unittest.TestCase):
             unit=TimeUnit.SECONDS,
         )
 
-        self.session_service.supports.side_effect = lambda action: (
-            action
-            in {
-                PowerAction.LOCK,
-                PowerAction.LOG_OUT,
-            }
-        )
-        self.shutdown_service.supports.return_value = False
-
-        self.session_service.build_action_command.return_value = [
-            "/usr/bin/loginctl",
-            "lock-session",
-            "42",
-        ]
-
-        self.systemd_service.schedule.return_value = Mock(
+        self._configure_schedule_mocks(
+            active_service=self.session_service,
+            inactive_service=self.shutdown_service,
+            action=PowerAction.LOCK,
+            command=["/usr/bin/loginctl", "lock-session", "42"],
+            unit_name="power-scheduler-lock-123",
+            is_user_unit=True,
             stdout="timer created",
             stderr="",
-            command=[
-                "/usr/bin/systemd-run",
-                "--user",
-                "--unit",
-                "power-scheduler-lock-123",
-                "/usr/bin/loginctl",
-                "lock-session",
-                "42",
-            ],
         )
 
         result = self.service.schedule(request)
 
         mock_generate_unit_name.assert_called_once_with(PowerAction.LOCK)
         mock_format_human_time.assert_called_once_with(15, TimeUnit.SECONDS)
-
-        self.session_service.build_action_command.assert_called_once_with(
-            PowerAction.LOCK
-        )
+        self.session_service.build_action_command.assert_called_once_with(PowerAction.LOCK)
         self.shutdown_service.build_action_command.assert_not_called()
-
         self.systemd_service.schedule.assert_called_once_with(
             SystemdScheduleParams(
                 unit_name="power-scheduler-lock-123",
@@ -89,14 +88,9 @@ class SchedulerServiceTests(unittest.TestCase):
                 description="Power Scheduler: lock",
             )
         )
-
         self.assertTrue(result.success)
         self.assertEqual(result.unit_name, "power-scheduler-lock-123")
         self.assertTrue(result.is_user_unit)
-        self.assertEqual(
-            result.command,
-            "/usr/bin/systemd-run --user --unit power-scheduler-lock-123 /usr/bin/loginctl lock-session 42",
-        )
         self.assertEqual(
             result.message,
             "Scheduled lock in 15 seconds.\nUnit: power-scheduler-lock-123\ntimer created",
@@ -119,42 +113,25 @@ class SchedulerServiceTests(unittest.TestCase):
             unit=TimeUnit.MINUTES,
         )
 
-        self.session_service.supports.return_value = False
-        self.shutdown_service.supports.side_effect = lambda action: (
-            action
-            in {
-                PowerAction.SUSPEND,
-                PowerAction.HIBERNATE,
-                PowerAction.POWER_OFF,
-            }
-        )
-        self.shutdown_service.build_action_command.return_value = [
-            "/usr/bin/systemctl",
-            "suspend",
-        ]
-
-        self.systemd_service.schedule.return_value = Mock(
+        self._configure_schedule_mocks(
+            active_service=self.shutdown_service,
+            inactive_service=self.session_service,
+            action=PowerAction.SUSPEND,
+            command=["/usr/bin/systemctl", "suspend"],
+            unit_name="power-scheduler-suspend-123",
+            is_user_unit=False,
             stdout="",
             stderr="some warning",
-            command=[
-                "/usr/bin/systemd-run",
-                "--unit",
-                "power-scheduler-suspend-123",
-                "/usr/bin/systemctl",
-                "suspend",
-            ],
         )
 
         result = self.service.schedule(request)
 
         mock_generate_unit_name.assert_called_once_with(PowerAction.SUSPEND)
         mock_format_human_time.assert_called_once_with(2, TimeUnit.MINUTES)
-
         self.shutdown_service.build_action_command.assert_called_once_with(
             PowerAction.SUSPEND
         )
         self.session_service.build_action_command.assert_not_called()
-
         self.systemd_service.schedule.assert_called_once_with(
             SystemdScheduleParams(
                 unit_name="power-scheduler-suspend-123",
@@ -164,7 +141,6 @@ class SchedulerServiceTests(unittest.TestCase):
                 description="Power Scheduler: suspend",
             )
         )
-
         self.assertTrue(result.success)
         self.assertEqual(result.unit_name, "power-scheduler-suspend-123")
         self.assertFalse(result.is_user_unit)

@@ -143,31 +143,42 @@ class PaletteService:
                 pass
 
     def _build_palette_css(self) -> str:
-        palette_file = self._get_preferred_palette()
-        if palette_file is None or not palette_file.exists():
-            fallback = self._get_user_css()
-            if fallback is None or not fallback.exists():
-                return ""
-            palette_file = fallback
-
-        raw = self._read_safe(palette_file)
-        if not raw:
+        palette_file = self._resolve_palette_file()
+        if palette_file is None:
             return ""
 
-        define_lines: list[str] = []
-        for line in raw.splitlines():
-            stripped = line.strip()
-            if not stripped:
-                continue
-            if stripped.startswith("/*") or stripped.startswith("//"):
-                continue
-            if stripped.startswith("@define-color "):
-                define_lines.append(stripped)
-
+        raw = self._read_safe(palette_file)
+        define_lines = self._extract_define_color_rules(raw)
         if not define_lines:
             return ""
 
         return "/* Imported system palette */\n" + "\n".join(define_lines) + "\n"
+
+    def _resolve_palette_file(self) -> Path | None:
+        palette_file = self._get_preferred_palette()
+        if palette_file is not None and palette_file.exists():
+            return palette_file
+
+        fallback = self._get_user_css()
+        if fallback is not None and fallback.exists():
+            return fallback
+
+        return None
+
+    @staticmethod
+    def _extract_define_color_rules(raw: str) -> list[str]:
+        if not raw:
+            return []
+
+        lines: list[str] = []
+        for line in raw.splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith("/*") or stripped.startswith("//"):
+                continue
+            if stripped.startswith("@define-color "):
+                lines.append(stripped)
+
+        return lines
 
     def _get_preferred_palette(self) -> Path | None:
         cosmic_dir = Path.home() / ".config" / "gtk-4.0" / "cosmic"
