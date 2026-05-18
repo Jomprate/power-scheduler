@@ -42,37 +42,39 @@ class SessionServiceTests(unittest.TestCase):
             "POWER_OFF should not be supported by SessionService.",
         )
 
-    @patch.dict("os.environ", {"XDG_SESSION_ID": "42"}, clear=False)
     @patch("utils.process_utils.shutil.which")
-    def test_lock_uses_loginctl_with_current_session_id(
-        self,
-        mock_which,
-    ) -> None:
-        self._mock_which(mock_which, {"loginctl": "/usr/bin/loginctl"})
+    def test_loginctl_based_commands(self, mock_which) -> None:
+        cases = [
+            (
+                {"XDG_SESSION_ID": "42"},
+                PowerAction.LOCK,
+                {"loginctl": "/usr/bin/loginctl"},
+                ["/usr/bin/loginctl", "lock-session", "42"],
+                "lock with session id",
+            ),
+            (
+                {},
+                PowerAction.LOCK,
+                {"loginctl": "/usr/bin/loginctl"},
+                ["/usr/bin/loginctl", "lock-session"],
+                "lock without session id",
+            ),
+            (
+                {"XDG_SESSION_ID": "42"},
+                PowerAction.LOG_OUT,
+                {"gnome-session-quit": None, "loginctl": "/usr/bin/loginctl"},
+                ["/usr/bin/loginctl", "terminate-session", "42"],
+                "logout fallback to loginctl",
+            ),
+        ]
 
-        command = self.service.build_action_command(PowerAction.LOCK)
-
-        self.assertEqual(
-            command,
-            ["/usr/bin/loginctl", "lock-session", "42"],
-            "LOCK should use loginctl lock-session with the current XDG session id.",
-        )
-
-    @patch.dict("os.environ", {}, clear=True)
-    @patch("utils.process_utils.shutil.which")
-    def test_lock_falls_back_to_loginctl_without_session_id(
-        self,
-        mock_which,
-    ) -> None:
-        self._mock_which(mock_which, {"loginctl": "/usr/bin/loginctl"})
-
-        command = self.service.build_action_command(PowerAction.LOCK)
-
-        self.assertEqual(
-            command,
-            ["/usr/bin/loginctl", "lock-session"],
-            "LOCK should fall back to loginctl lock-session when XDG_SESSION_ID is unavailable.",
-        )
+        for env_vars, action, binaries, expected, label in cases:
+            with self.subTest(label=label), patch.dict(
+                "os.environ", env_vars, clear=True
+            ):
+                self._mock_which(mock_which, binaries)
+                command = self.service.build_action_command(action)
+                self.assertEqual(command, expected)
 
     @patch.dict("os.environ", {"XDG_SESSION_ID": "42"}, clear=False)
     @patch("utils.process_utils.shutil.which", return_value=None)
@@ -110,25 +112,6 @@ class SessionServiceTests(unittest.TestCase):
                 "--no-prompt",
             ],
             "LOG_OUT should prefer gnome-session-quit when that binary is available.",
-        )
-
-    @patch.dict("os.environ", {"XDG_SESSION_ID": "42"}, clear=False)
-    @patch("utils.process_utils.shutil.which")
-    def test_logout_falls_back_to_loginctl_terminate_session(
-        self,
-        mock_which,
-    ) -> None:
-        self._mock_which(
-            mock_which,
-            {"gnome-session-quit": None, "loginctl": "/usr/bin/loginctl"},
-        )
-
-        command = self.service.build_action_command(PowerAction.LOG_OUT)
-
-        self.assertEqual(
-            command,
-            ["/usr/bin/loginctl", "terminate-session", "42"],
-            "LOG_OUT should fall back to loginctl terminate-session with the current XDG session id.",
         )
 
     @patch.dict("os.environ", {}, clear=True)
