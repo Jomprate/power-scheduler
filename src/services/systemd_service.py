@@ -231,14 +231,24 @@ class SystemdService:
 
         for prefix in prefixes:
             for suffix in suffixes:
-                args = [*base_command, "stop", f"{prefix}{suffix}"]
-                result = run_command(args, check=False)
-                if result.returncode != 0:
-                    stderr = (result.stderr or "").strip()
-                    if stderr and "not loaded" not in stderr.lower():
-                        messages.append(stderr)
+                message = self._try_stop_unit(base_command, f"{prefix}{suffix}")
+                if message:
+                    messages.append(message)
 
         return messages
+
+    def _try_stop_unit(self, base_command: list[str], unit_name: str) -> str | None:
+        args = [*base_command, "stop", unit_name]
+        result = run_command(args, check=False)
+
+        if result.returncode == 0:
+            return None
+
+        stderr = (result.stderr or "").strip()
+        if not stderr or "not loaded" in stderr.lower():
+            return None
+
+        return stderr
 
     def _build_systemctl_base(self, is_user_unit: bool) -> list[str]:
         systemctl_path = which_required("systemctl")
